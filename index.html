@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMjggMTI4Ij4KICA8cmVjdCB3aWR0aD0iMTI4IiBoZWlnaHQ9IjEyOCIgcng9IjI4IiBmaWxsPSIjMGUwYjFhIi8+CiAgPHJlY3Qgd2lkdGg9IjEyOCIgaGVpZ2h0PSIxMjgiIHJ4PSIyOCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZDhiNGZlIiBzdHJva2Utd2lkdGg9IjIiIG9wYWNpdHk9IjAuNSIvPgogIDxyZWN0IHg9IjAiIHk9IjAiIHdpZHRoPSIxMjgiIGhlaWdodD0iNiIgcng9IjMiIGZpbGw9IiNkOGI0ZmUiIG9wYWNpdHk9IjAuOSIvPgogIDxsaW5lIHgxPSIyOCIgeTE9IjQwIiB4Mj0iNjAiIHkyPSI0MCIgc3Ryb2tlPSIjZDhiNGZlIiBzdHJva2Utd2lkdGg9IjgiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgogIDxsaW5lIHgxPSI0NCIgeTE9IjQwIiB4Mj0iNDQiIHkyPSI4OCIgc3Ryb2tlPSIjZDhiNGZlIiBzdHJva2Utd2lkdGg9IjgiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgogIDxwYXRoIGQ9Ik03MiA0MSBRNzIgMzggODAgMzggUTkyIDM4IDkyIDQ4IFE5MiA1OCA4MCA1OCBRNjggNTggNjggNjggUTY4IDc4IDgwIDc4IFE5MiA3OCA5MiA3NiIgc3Ryb2tlPSIjYTViNGZjIiBzdHJva2Utd2lkdGg9IjgiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgZmlsbD0ibm9uZSIvPgogIDxjaXJjbGUgY3g9IjEwOCIgY3k9IjQwIiByPSI3IiBmaWxsPSIjZjlhOGQ0IiBvcGFjaXR5PSIwLjk1Ii8+Cjwvc3ZnPg==">
+  <title>TeamSync — College Group Manager 🔥</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+
+<!-- ══════════ FIREBASE COMPAT SDK (v9 compat — works as normal script tags) ══════════ -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+
+<!-- ✨ Animated Orbs -->
+<div class="ts-orb ts-orb-1"></div>
+<div class="ts-orb ts-orb-2"></div>
+<div class="ts-orb ts-orb-3"></div>
+<!-- ✨ Particle Canvas -->
+<canvas id="ts-particles"></canvas>
+
+<!-- ═══════════ SETUP SCREEN (Captain First Entry) ═══════════ -->
+<div id="setup-screen" class="z1">
+  <div class="setup-wrap">
+    <div class="setup-brand">
+      <div class="brand-mark">Team<em>Sync</em></div>
+      <div class="brand-sub">College Group Management Portal</div>
+    </div>
+    <div class="setup-card">
+      <!-- Step 1: Welcome -->
+      <div class="setup-step active" id="stp-1">
+        <div class="setup-title">👋 Welcome, Captain!</div>
+        <div class="setup-desc">This is a first-time setup. As Captain, you'll be the first to register. All other members are added by you through the Admin panel.</div>
+        <div class="fg">
+          <div class="field"><label>Your Full Name *</label><input id="cap-name" placeholder="e.g. Arjun Kumar"></div>
+          <div class="field"><label>Register / Roll No *</label><input id="cap-roll" placeholder="e.g. 22CS001"></div>
+          <div class="field">
+            <label>Department *</label>
+            <select id="cap-dept">
+              <option value="">Select Department</option>
+              <option>Computer Science &amp; Engineering</option>
+              <option>Information Technology</option>
+              <option>Electronics &amp; Communication</option>
+              <option>Electrical Engineering</option>
+              <option>Mechanical Engineering</option>
+              <option>Civil Engineering</option>
+              <option>AI &amp; Data Science</option>
+              <option>Cyber Security</option>
+              <option>MBA / Management</option>
+              <option>Biotechnology</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Year</label>
+            <select id="cap-year">
+              <option>1st Year</option><option>2nd Year</option><option>3rd Year</option><option selected>4th Year</option>
+            </select>
+          </div>
+          <div class="field"><label>Email</label><input id="cap-email" type="email" placeholder="captain@college.edu"></div>
+          <div class="field"><label>Set PIN (4 digits) *</label><input id="cap-pin" type="password" maxlength="4" placeholder="••••" inputmode="numeric"></div>
+          <div class="field full"><label>Confirm PIN *</label><input id="cap-pin2" type="password" maxlength="4" placeholder="••••" inputmode="numeric"></div>
+        </div>
+        <div class="login-err" id="stp1-err"></div>
+        <div class="act">
+          <button class="btn btn-p" onclick="setupCaptain()">Create Captain Account →</button>
+        </div>
+        <div style="margin-top:20px;padding-top:20px;border-top:1px solid var(--b1)">
+          <p style="font-size:.82rem;color:var(--t3);line-height:1.6">🔥 <strong style="color:var(--t2)">Firebase powered</strong> — once the Captain creates their account, all members can log in from any device automatically. Just share this HTML file with your team.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+<!-- ═══════════ LOGIN SCREEN ═══════════ -->
+<div id="login-screen">
+  <div class="login-wrap">
+    <div class="login-card">
+      <div class="login-brand">
+        <div class="logo">Team<em>Sync</em></div>
+        <p>Select your profile to continue</p>
+      </div>
+      <div class="lbl" style="margin-bottom:9px">Team Members</div>
+      <div class="member-grid" id="login-member-grid"></div>
+      <div class="field" style="margin-bottom:12px">
+        <label>PIN</label>
+        <input id="login-pin" type="password" maxlength="4" placeholder="Enter 4-digit PIN" inputmode="numeric" style="width:100%;background:var(--s2);border:1px solid var(--b2);border-radius:var(--r8);color:var(--t1);font-family:var(--mono);font-size:1.3rem;padding:12px 16px;outline:none;text-align:center;letter-spacing:.4em;transition:all .2s" onkeydown="if(event.key==='Enter')doLogin()" onfocus="this.style.borderColor='var(--acc)';this.style.boxShadow='0 0 0 3px rgba(192,132,252,.12)'" onblur="this.style.borderColor='var(--b2)';this.style.boxShadow='none'">
+      </div>
+      <div class="login-err" id="login-err"></div>
+      <button class="btn btn-p" style="width:100%;justify-content:center" onclick="doLogin()">Sign In →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ APP SHELL ═══════════ -->
+<div id="app-shell">
+
+  <!-- TOPBAR -->
+  <div id="topbar">
+    <button id="hamburger" onclick="openMobileMenu()" aria-label="Menu">&#9776;</button>
+    <div class="tb-logo">Team<em>Sync</em></div>
+    <div class="tb-nav" id="tb-nav"></div>
+    <div class="tb-user">
+      <div class="tb-av" id="tb-av"></div>
+      <span class="tb-uname" id="tb-uname"></span>
+      <span class="tb-role-badge" id="tb-rbadge"></span>
+      <button id="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode" aria-label="Toggle theme">
+        <span class="tt-thumb" id="tt-icon">🌙</span>
+      </button>
+      <button class="btn-logout" onclick="doLogout()">Sign out</button>
+    </div>
+  </div>
+
+  <!-- MOBILE BOTTOM NAV -->
+  <div id="mobile-nav"></div>
+
+  <!-- MOBILE SLIDE-IN MENU -->
+  <div id="mobile-menu" onclick="closeMobileMenuOutside(event)">
+    <div id="mobile-menu-panel">
+      <div id="mobile-menu-header">
+        <div id="mobile-menu-user">
+          <div id="mm-av" style="width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.85rem;flex-shrink:0"></div>
+          <div style="min-width:0">
+            <div style="font-weight:700;font-size:.92rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" id="mm-uname"></div>
+            <div style="font-size:.72rem;color:var(--t3);margin-top:2px" id="mm-role"></div>
+          </div>
+        </div>
+        <button id="mm-close" onclick="closeMobileMenu()">&#10005;</button>
+      </div>
+      <div id="mm-nav-list" style="overflow-y:auto;flex:1"></div>
+      <div style="padding:16px 20px;border-top:1px solid var(--b1)">
+        <button class="btn btn-d btn-sm" style="width:100%;justify-content:center" onclick="doLogout()">Sign out</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div id="main">
+
+    <!-- ── DASHBOARD ── -->
+    <div class="screen" id="sc-dash">
+      <div class="sh"><div class="sh-num">01</div><div class="sh-info"><h2>Dashboard</h2><p>Team snapshot &amp; member overview</p></div></div>
+
+      <div id="dash-leave-banner"></div>
+      <div class="stat-grid">
+        <div class="sc"><div class="sc-num" id="st-mem" style="color:var(--acc)">0</div><div class="sc-lbl">Members</div></div>
+        <div class="sc"><div class="sc-num" id="st-dept" style="color:var(--acc2)">0</div><div class="sc-lbl">Departments</div></div>
+        <div class="sc"><div class="sc-num" id="st-msg" style="color:var(--acc4)">0</div><div class="sc-lbl">Messages</div></div>
+        <div class="sc"><div class="sc-num" id="st-rep" style="color:var(--acc3)">0</div><div class="sc-lbl">Reports</div></div>
+        <div class="sc"><div class="sc-num" id="st-rm" style="color:var(--acc5)">0</div><div class="sc-lbl">Roadmaps</div></div>
+        <div class="sc"><div class="sc-num" id="st-hk" style="color:var(--acc6)">0</div><div class="sc-lbl">Hackathons</div></div>
+      </div>
+      <div class="card"><div class="ct"><span class="cd"></span>All Members</div><div id="dash-list"></div></div>
+    </div>
+
+    <!-- ── MY PROFILE ── -->
+    <div class="screen" id="sc-profile">
+      <div class="sh"><div class="sh-num">09</div><div class="sh-info"><h2>My Profile</h2><p>Update your weekly progress &amp; goals</p></div></div>
+      <div id="profile-body"></div>
+    </div>
+
+    <!-- ── ANNOUNCEMENTS ── -->
+    <div class="screen" id="sc-announce">
+      <div class="sh"><div class="sh-num">02</div><div class="sh-info"><h2>Announcements</h2><p>Team messages — visible to everyone</p></div></div>
+      <div class="compose">
+        <div class="ct" style="margin-bottom:11px"><span class="cd" style="background:var(--acc4)"></span>Post to Team</div>
+        <textarea id="msg-inp" placeholder="Share an update, announcement, link or resource with everyone..."></textarea>
+        <div class="cfoot"><div class="cwho" id="compose-as"></div>
+          <button class="btn btn-p btn-sm" onclick="postMsg()">📢 Post</button>
+        </div>
+      </div>
+      <div id="pinned-area"></div>
+      <div id="msg-feed"></div>
+    </div>
+
+    <!-- ── WEEKLY REPORTS ── -->
+    <div class="screen" id="sc-reports">
+      <div class="sh"><div class="sh-num">05</div><div class="sh-info"><h2>Weekly Reports</h2><p>Submit .txt reports — visible to Captain, Vice, Manager &amp; Strategist</p></div></div>
+      <div id="report-body"></div>
+    </div>
+
+    <!-- ── ROADMAP ── -->
+    <div class="screen" id="sc-roadmap">
+      <div class="sh"><div class="sh-num">06</div><div class="sh-info"><h2>Roadmaps</h2><p>Strategist-created personal roadmaps</p></div></div>
+      <div id="roadmap-body"></div>
+    </div>
+
+    <!-- ── DEPARTMENTS ── -->
+    <div class="screen" id="sc-depts">
+      <div class="sh"><div class="sh-num">08</div><div class="sh-info"><h2>Departments</h2><p>Members grouped by department</p></div></div>
+      <div id="depts-body"></div>
+    </div>
+
+    <!-- ── HACKATHONS ── -->
+    <div class="screen" id="sc-hackathon">
+      <div class="sh"><div class="sh-num">07</div><div class="sh-info"><h2>Hackathons</h2><p>Team Manager posts — everyone can view &amp; register</p></div></div>
+      <div id="hackathon-body"></div>
+    </div>
+
+    <!-- ── LEETCODE ── -->
+    <div class="screen" id="sc-leetcode">
+      <div class="sh"><div class="sh-num">04</div><div class="sh-info"><h2>LeetCode Tracker</h2><p>Track each member's LeetCode progress — manual entry</p></div></div>
+      <div id="leetcode-body"></div>
+    </div>
+
+    <!-- ── ADMIN ── -->
+    <div class="screen" id="sc-admin">
+      <div class="sh"><div class="sh-num">10</div><div class="sh-info"><h2>Admin Panel</h2><p>Captain only — add &amp; manage members</p></div></div>
+      <div id="admin-body"></div>
+    </div>
+
+    <!-- ── DAILY TASKS ── -->
+    <div class="screen" id="sc-tasks">
+      <div class="sh"><div class="sh-num">03</div><div class="sh-info"><h2>Daily Tasks</h2><p>Captain assigns tasks per problem statement — due by 8 PM next day</p></div></div>
+      <div id="tasks-body"></div>
+    </div>
+</div><!-- /app-shell -->
+
+<!-- MEMBER DETAIL MODAL -->
+<div class="mov" id="modal-member">
+  <div class="modal">
+    <button class="modal-x" onclick="closeMov('modal-member')">✕ Close</button>
+    <div id="modal-member-body"></div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
