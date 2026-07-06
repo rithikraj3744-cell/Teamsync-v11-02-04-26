@@ -832,7 +832,7 @@ function renderReports(){
     <div class="info-pill ip-info">📄 Upload a .txt, .pptx, or .docx file — your weekly summary</div>
     <div class="fg">
       <div class="field"><label>Report Title</label><input id="rep-title" placeholder="Week 12 — Progress Update"></div>
-      <div class="field"><label>Upload File (.txt / .pptx / .docx)</label><input type="file" id="rep-file" accept=".txt,.pptx,.docx,.ppt,.doc"></div>
+      <div class="field"><label>Upload File (.txt / .pptx / .docx) Size must be less than 1MB</label><input type="file" id="rep-file" accept=".txt,.pptx,.docx,.ppt,.doc"></div>
     </div>
     <div class="act"><button class="btn btn-p" onclick="submitReport()">📤 Submit Report</button></div>
   </div>`;
