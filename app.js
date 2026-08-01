@@ -3886,7 +3886,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   const topbar=document.getElementById('topbar');
   if(topbar){
     window.addEventListener('scroll',()=>{
-      topbar.style.boxShadow=window.scrollY>10?'0 4px 32px rgba(0,0,0,.4)':'';
+      topbar.style.boxShadow=window.scrollY>10?'0 4px 24px rgba(0,0,0,.6),0 1px 0 var(--b1)':'';
     },{passive:true});
   }
 });
