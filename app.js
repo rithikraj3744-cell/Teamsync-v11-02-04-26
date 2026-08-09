@@ -39,6 +39,11 @@ const SENIOR_ROLES = ['captain','vice','manager','strategist','team_leader'];
 
 function dc(dept){return DEPT_COLOR[dept]||'#94a3b8'}
 function ini(n){return (n||'?').split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase()}
+/* Returns the inner HTML for an avatar circle — a cropped photo if the member has
+   uploaded one (m.photoURL), otherwise falls back to initials. */
+function avInner(m){
+  return (m&&m.photoURL) ? `<img src="${m.photoURL}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block">` : ini(m&&m.name);
+}
 function ds(dept){return DEPT_SHORT[dept]||'OTH'}
 function isSenior(role){return SENIOR_ROLES.includes(role)}
 function sid(x){return String(x)}
@@ -316,7 +321,7 @@ function buildLoginGrid(){
     const c=dc(m.dept);
     const displayRole=m.role==='team_leader'?'Member':ROLES[m.role];
     return `<div class="member-login-btn" id="mlb-${m.id}" onclick="selectLoginMember(${m.id})">
-      <div class="mlb-av" style="background:${c}1a;color:${c};border:1.5px solid ${c}40">${ini(m.name)}</div>
+      <div class="mlb-av" style="background:${c}1a;color:${c};border:1.5px solid ${c}40">${avInner(m)}</div>
       <div><div class="mlb-name">${m.name}</div><div class="mlb-role">${displayRole}</div></div>
     </div>`;
   }).join('');
@@ -412,7 +417,7 @@ function buildNav(){
   if(CU){
     const c=dc(CU.dept);
     const mmav=document.getElementById('mm-av');
-    if(mmav){mmav.textContent=ini(CU.name);mmav.style.cssText=`background:${c}1a;color:${c};border:1.5px solid ${c}40`;}
+    if(mmav){mmav.innerHTML=avInner(CU);mmav.style.cssText=`background:${c}1a;color:${c};border:1.5px solid ${c}40`;}
     const mmu=document.getElementById('mm-uname');
     if(mmu) mmu.textContent=CU.name;
     const mmr=document.getElementById('mm-role');
@@ -436,7 +441,7 @@ function updateTopbarUser(){
   if(!CU)return;
   const c=dc(CU.dept);
   const av=document.getElementById('tb-av');
-  av.textContent=ini(CU.name);
+  av.innerHTML=avInner(CU);
   av.style.cssText=`background:${c}1a;color:${c};border:1.5px solid ${c}40`;
   document.getElementById('tb-uname').textContent=CU.name;
   const rb=document.getElementById('tb-rbadge');
@@ -457,7 +462,7 @@ function updateTopbarUser(){
   }
   // Sync mobile menu avatar
   const mmav=document.getElementById('mm-av');
-  if(mmav){mmav.textContent=ini(CU.name);mmav.style.cssText=`background:${c}1a;color:${c};border:1.5px solid ${c}40`;}
+  if(mmav){mmav.innerHTML=avInner(CU);mmav.style.cssText=`background:${c}1a;color:${c};border:1.5px solid ${c}40`;}
   const mmu=document.getElementById('mm-uname');
   if(mmu) mmu.textContent=CU.name;
   const mmr=document.getElementById('mm-role');
@@ -524,6 +529,76 @@ function renderDash(){
 
 /* Builds the full personal-dashboard markup for a given member — used both
    for a member's own Dashboard tab and could be reused for a read-only view. */
+/* ════════════════════════════════════════════════════════════
+   LIGHTWEIGHT SVG CHARTS — no external chart library, themeable
+   via CSS vars so they match dark/light mode automatically
+════════════════════════════════════════════════════════════ */
+function svgSmoothPath(points){
+  if(!points.length) return '';
+  if(points.length===1) return `M ${points[0][0].toFixed(1)},${points[0][1].toFixed(1)}`;
+  let d = `M ${points[0][0].toFixed(1)},${points[0][1].toFixed(1)}`;
+  for(let i=0;i<points.length-1;i++){
+    const [x0,y0]=points[i], [x1,y1]=points[i+1];
+    const midX=(x0+x1)/2;
+    d += ` C ${midX.toFixed(1)},${y0.toFixed(1)} ${midX.toFixed(1)},${y1.toFixed(1)} ${x1.toFixed(1)},${y1.toFixed(1)}`;
+  }
+  return d;
+}
+
+/* Dual-series area/line chart, e.g. "assigned vs verified" over N days */
+function buildActivityChart(labels, seriesA, seriesB){
+  const w=600,h=176,padL=8,padR=8,padT=16,padB=24;
+  const max=Math.max(1,...seriesA,...seriesB);
+  const n=labels.length;
+  const stepX = n>1 ? (w-padL-padR)/(n-1) : 0;
+  const y=(v)=>padT+(h-padT-padB)*(1-v/max);
+  const ptsA=seriesA.map((v,i)=>[padL+i*stepX,y(v)]);
+  const ptsB=seriesB.map((v,i)=>[padL+i*stepX,y(v)]);
+  const pathA=svgSmoothPath(ptsA);
+  const pathB=svgSmoothPath(ptsB);
+  const areaA = ptsA.length ? `${pathA} L ${ptsA[ptsA.length-1][0].toFixed(1)},${(h-padB).toFixed(1)} L ${ptsA[0][0].toFixed(1)},${(h-padB).toFixed(1)} Z` : '';
+  const gid='ag'+Math.random().toString(36).slice(2,8);
+  const dotsA=ptsA.map(p=>`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3" fill="var(--acc)"/>`).join('');
+  const dotsB=ptsB.map(p=>`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2.5" fill="var(--acc2)"/>`).join('');
+  const gridLines=[0.25,0.5,0.75].map(f=>{
+    const gy=(padT+(h-padT-padB)*f).toFixed(1);
+    return `<line x1="${padL}" y1="${gy}" x2="${w-padR}" y2="${gy}" stroke="var(--b1)" stroke-width="1" stroke-dasharray="3,4"/>`;
+  }).join('');
+  const labelsHtml=labels.map((l,i)=>`<text x="${(padL+i*stepX).toFixed(1)}" y="${h-6}" font-size="9.5" fill="var(--t3)" text-anchor="middle" font-family="var(--font)">${l}</text>`).join('');
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" preserveAspectRatio="none" style="overflow:visible;display:block">
+    <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="var(--acc)" stop-opacity="0.32"/>
+      <stop offset="100%" stop-color="var(--acc)" stop-opacity="0"/>
+    </linearGradient></defs>
+    ${gridLines}
+    <path d="${areaA}" fill="url(#${gid})" stroke="none"/>
+    <path d="${pathB}" fill="none" stroke="var(--acc2)" stroke-width="2" stroke-linecap="round" opacity="0.9"/>
+    <path d="${pathA}" fill="none" stroke="var(--acc)" stroke-width="2.5" stroke-linecap="round"/>
+    ${dotsB}${dotsA}
+    ${labelsHtml}
+  </svg>`;
+}
+
+/* Semi-circle "speedometer" gauge with a needle — percent 0-100 */
+function buildGaugeChart(percent){
+  percent = Math.max(0,Math.min(100,Math.round(percent)));
+  const size=200, cx=size/2, cy=108, r=76;
+  const toXY=(deg,radius)=>{const rad=deg*Math.PI/180;return [cx+radius*Math.cos(rad), cy-radius*Math.sin(rad)];};
+  const [x1,y1]=toXY(180,r), [x2,y2]=toXY(0,r);
+  const needleAngle = 180-(percent/100*180);
+  const [xp,yp]=toXY(needleAngle,r-14);
+  const color = percent>=80?'var(--acc5)':percent>=50?'var(--acc)':'var(--acc3)';
+  const circumference = Math.PI*r;
+  const dash = circumference*(percent/100);
+  return `<svg viewBox="0 0 ${size} 128" width="100%" height="128">
+    <path d="M ${x1.toFixed(1)} ${y1.toFixed(1)} A ${r} ${r} 0 0 1 ${x2.toFixed(1)} ${y2.toFixed(1)}" fill="none" stroke="var(--s3)" stroke-width="15" stroke-linecap="round"/>
+    <path d="M ${x1.toFixed(1)} ${y1.toFixed(1)} A ${r} ${r} 0 0 1 ${x2.toFixed(1)} ${y2.toFixed(1)}" fill="none" stroke="${color}" stroke-width="15" stroke-linecap="round" stroke-dasharray="${dash.toFixed(1)} ${circumference.toFixed(1)}"/>
+    <line x1="${cx}" y1="${cy}" x2="${xp.toFixed(1)}" y2="${yp.toFixed(1)}" stroke="var(--t1)" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="${cx}" cy="${cy}" r="6.5" fill="var(--t1)"/>
+    <text x="${cx}" y="${cy-24}" text-anchor="middle" font-size="24" font-weight="800" fill="${color}" font-family="var(--font)">${percent}%</text>
+  </svg>`;
+}
+
 function personalDashboardHTML(memberId){
   const m = members.find(x=>sid(x.id)===sid(memberId));
   if(!m) return emptyState('👤','Member not found');
@@ -544,7 +619,7 @@ function personalDashboardHTML(memberId){
   /* ── Profile card ── */
   const profileCard = `<div class="pd-card">
     <div class="pd-profile-top">
-      <div class="pd-profile-av" style="background:${c}18;color:${c};border:2px solid ${c}40">${ini(m.name)}</div>
+      <div class="pd-profile-av" style="background:${c}18;color:${c};border:2px solid ${c}40">${avInner(m)}</div>
       <div style="min-width:0">
         <div class="pd-profile-name">${m.name}</div>
         <div class="pd-profile-sub">${m.roll} · ${ds(m.dept)}</div>
@@ -596,6 +671,89 @@ function personalDashboardHTML(memberId){
       <div class="pd-donut-sub">${perf.overall.verified} verified out of ${perf.overall.total} tasks</div>
     </div>
   </div>`;
+
+  /* ── Task Activity line chart (last 7 days: assigned vs verified) ── */
+  const chartDays = [];
+  for(let i=6;i>=0;i--){
+    const d=new Date(); d.setDate(d.getDate()-i);
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    chartDays.push({key, label:d.toLocaleDateString('en-IN',{weekday:'short'})});
+  }
+  const myAllTasks = dailyTasks.filter(t=>sid(t.memberId)===sid(m.id) && t.status!=='removed');
+  const assignedSeries = chartDays.map(d=>myAllTasks.filter(t=>t.assignedDate===d.key).length);
+  const verifiedSeries = chartDays.map(d=>myAllTasks.filter(t=>t.assignedDate===d.key && t.status==='verified').length);
+  const weekTotal = assignedSeries.reduce((a,b)=>a+b,0);
+  const weekVerified = verifiedSeries.reduce((a,b)=>a+b,0);
+  const weekRate = weekTotal ? Math.round(weekVerified/weekTotal*100) : perf.overall.rate;
+
+  const activityChartCard = `<div class="pd-card">
+    <div class="pd-head"><div><h4>Task Activity</h4><p>Your last 7 days, day by day</p></div></div>
+    <div style="display:flex;gap:14px;margin:8px 0 4px;font-size:.7rem;color:var(--t3)">
+      <span style="display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:var(--acc);display:inline-block"></span>Assigned</span>
+      <span style="display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:var(--acc2);display:inline-block"></span>Verified</span>
+    </div>
+    ${weekTotal ? buildActivityChart(chartDays.map(d=>d.label), assignedSeries, verifiedSeries) : emptyState('📈','No task activity in the last 7 days.')}
+  </div>`;
+
+  /* ── Weekly verification-rate gauge ── */
+  const gaugeCard = `<div class="pd-card">
+    <div class="pd-head"><div><h4>This Week</h4><p>Verification rate, last 7 days</p></div></div>
+    <div style="text-align:center">
+      ${buildGaugeChart(weekRate)}
+      <div style="font-size:.74rem;color:var(--t3);margin-top:-6px">${weekVerified} of ${weekTotal||0} verified this week</div>
+    </div>
+  </div>`;
+
+  /* ── LeetCode snapshot with inline Sync Now ── */
+  const lcTarget = lcEntry && lcEntry.target ? lcEntry.target : 0;
+  const lcProgressPct = lcTarget ? Math.min(100, Math.round(lcTotal/lcTarget*100)) : 0;
+  const leetcodeSnapshotCard = `<div class="pd-card">
+    <div class="pd-head"><div><h4>💻 LeetCode</h4><p>${lcEntry && lcEntry.handle ? '@'+escHTML(lcEntry.handle) : 'Not linked yet — add it in My Profile'}</p></div>
+      ${lcEntry && lcEntry.streak ? `<span class="pd-head-badge" style="color:var(--acc4);background:rgba(252,211,77,.1);border-color:rgba(252,211,77,.25)">🔥 ${lcEntry.streak}d</span>` : ''}
+    </div>
+    <div class="pd-tile" style="background:rgba(192,132,252,.08);border:1px solid rgba(192,132,252,.22);margin-top:12px">
+      <div class="pd-tile-num" style="color:var(--acc)">${lcTotal}</div>
+      <div class="pd-tile-lbl">Problems Solved</div>
+    </div>
+    ${lcTarget ? `<div style="margin-top:12px">
+        <div style="display:flex;justify-content:space-between;font-size:.7rem;color:var(--t3);margin-bottom:5px"><span>Progress to goal</span><span>${lcTotal}/${lcTarget}</span></div>
+        <div style="height:8px;border-radius:99px;background:var(--s3);overflow:hidden"><div style="height:100%;width:${lcProgressPct}%;background:linear-gradient(90deg,var(--acc),var(--acc2));border-radius:99px"></div></div>
+      </div>` : ''}
+    <button class="btn btn-p btn-sm" style="width:100%;justify-content:center;margin-top:14px" onclick="syncSingleLeetCode(${m.id}).then(()=>renderDash())">🔄 Sync Now</button>
+  </div>`;
+
+  /* ── Team Pulse — status of nearby teammates today ── */
+  const todayK = todayKey();
+  let pulseMembers = [];
+  if(domain){
+    const idSet = new Set([...(domain.memberIds||[]), domain.tlId].filter(Boolean).map(String));
+    idSet.delete(String(m.id));
+    pulseMembers = members.filter(x=>idSet.has(String(x.id)));
+  } else {
+    pulseMembers = members.filter(x=>sid(x.id)!==sid(m.id));
+  }
+  const pulseStatusMeta = {
+    pending:{lbl:'Pending today',color:'var(--acc4)'}, submitted:{lbl:'Submitted',color:'var(--acc2)'},
+    verified:{lbl:'Verified today',color:'var(--acc5)'}, carried:{lbl:'Carried over',color:'var(--acc6)'},
+    overdue_pending:{lbl:'Overdue',color:'var(--acc3)'}, excused:{lbl:'Excused',color:'var(--acc)'}
+  };
+  const pulseCards = pulseMembers.slice(0,5).map(tm=>{
+    const tc = dc(tm.dept);
+    const tTask = dailyTasks.find(t=>sid(t.memberId)===sid(tm.id) && t.assignedDate===todayK && t.status!=='removed');
+    const sm2 = tTask ? (pulseStatusMeta[tTask.status]||{lbl:tTask.status,color:'var(--t3)'}) : {lbl:'No task today',color:'var(--t4)'};
+    return `<div style="border:1px solid var(--b1);border-left:3px solid ${sm2.color};border-radius:10px;padding:10px 14px;display:flex;align-items:center;gap:10px">
+      <div style="width:34px;height:34px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.75rem;overflow:hidden;background:${tc}18;color:${tc};border:1.5px solid ${tc}38">${avInner(tm)}</div>
+      <div style="min-width:0;flex:1">
+        <div style="font-size:.85rem;font-weight:700;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${tm.name}</div>
+        <div style="font-size:.7rem;color:${sm2.color};display:flex;align-items:center;gap:5px;margin-top:2px"><span style="width:6px;height:6px;border-radius:50%;background:${sm2.color};display:inline-block"></span>${sm2.lbl}</div>
+      </div>
+      <span style="font-size:.62rem;font-weight:700;color:${tc};background:${tc}15;border:1px solid ${tc}30;padding:2px 7px;border-radius:99px;flex-shrink:0">${ds(tm.dept)}</span>
+    </div>`;
+  }).join('');
+  const teamPulseCard = pulseMembers.length ? `<div class="pd-card">
+    <div class="pd-head"><div><h4>Team Pulse</h4><p>${domain? escHTML(domain.name)+' teammates':'Fellow team members'} — today</p></div></div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">${pulseCards}</div>
+  </div>` : '';
 
   /* ── Skills & Courses horizontal cards ── */
   const skillCards = (m.skills||[]).map(s=>`<div class="pd-skill-card">
@@ -661,8 +819,8 @@ function personalDashboardHTML(memberId){
   </div>`;
 
   return `<div class="pd-wrap">
-    <div class="pd-col">${profileCard}${donutCard}${perfCard}</div>
-    <div class="pd-col">${skillsCard}${tasksCard}${announceCard}</div>
+    <div class="pd-col">${profileCard}${gaugeCard}${donutCard}${leetcodeSnapshotCard}</div>
+    <div class="pd-col">${activityChartCard}${teamPulseCard}${perfCard}${skillsCard}${tasksCard}${announceCard}</div>
   </div>`;
 }
 
@@ -670,7 +828,7 @@ function mrHTML(m,showDelete){
   const c=dc(m.dept); const isMe=CU&&sid(m.id)===sid(CU.id);
   const ds2=ds(m.dept);
   return `<div class="mr" onclick="openMemberDetail(${m.id})">
-    <div class="av" style="background:${c}18;color:${c};border:1.5px solid ${c}38">${ini(m.name)}</div>
+    <div class="av" style="background:${c}18;color:${c};border:1.5px solid ${c}38">${avInner(m)}</div>
     <div class="mi">
       <div class="mn">${m.name}${isMe?' <span style="font-size:.68rem;color:var(--acc);font-weight:600;margin-left:4px">(you)</span>':''}</div>
       <div class="ms">${m.roll} · ${m.year}</div>
@@ -686,17 +844,33 @@ function mrHTML(m,showDelete){
 /* ════════════════════════════════════════════════════════════
    MY PROFILE
 ════════════════════════════════════════════════════════════ */
-let pSkills=[], pCourseRows=[], pProjectRows=[];
+let pSkills=[], pCourseRows=[], pProjectRows=[], pPhotoURL=null;
 
 function renderProfile(){
   if(!CU)return;
   const m=CU;
+  const c=dc(m.dept);
   pSkills=[...(m.skills||[])];
   pCourseRows=[];
   pProjectRows=[];
+  pPhotoURL=m.photoURL||null;
 
   document.getElementById('profile-body').innerHTML=`
     <div class="wk-bar"><span class="wk-dot"></span>Weekly update · ${new Date().toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'short'})}</div>
+
+    <div class="card"><div class="ct"><span class="cd" style="background:var(--acc)"></span>Profile Photo</div>
+      <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+        <div id="p-photo-preview" style="width:84px;height:84px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.7rem;background:${c}18;color:${c};border:2px solid ${c}40;overflow:hidden">${avInner(m)}</div>
+        <div style="display:flex;flex-direction:column;gap:9px;min-width:0">
+          <input type="file" id="p-photo-input" accept="image/*" style="display:none" onchange="handleProfilePhotoChange(this)">
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button type="button" class="btn btn-s btn-sm" onclick="document.getElementById('p-photo-input').click()">📷 Upload Photo</button>
+            <button type="button" class="btn btn-d btn-sm" id="p-photo-remove-btn" style="${m.photoURL?'':'display:none'}" onclick="removeProfilePhoto()">🗑 Remove</button>
+          </div>
+          <div style="font-size:.72rem;color:var(--t3);line-height:1.5">JPG or PNG — auto-resized &amp; cropped to a square. Visible to your teammates everywhere your avatar appears. Click <strong style="color:var(--t2)">Save Update</strong> below to apply.</div>
+        </div>
+      </div>
+    </div>
 
     ${performanceCardHTML(m.id)}
 
@@ -760,6 +934,52 @@ function renderProfile(){
   initPTagInput();
   (m.courses||[]).forEach(c=>addPCourse(c));
   (m.projectList||[]).forEach(p=>addProjectEntry(p));
+}
+
+/* Reads the chosen image file, crops it to a square, downsizes it, and stores
+   it as a compact base64 JPEG (kept in pPhotoURL until Save Update is pressed —
+   same pattern as report file uploads, since Storage isn't set up on this plan). */
+function handleProfilePhotoChange(input){
+  const file=input.files&&input.files[0];
+  if(!file)return;
+  if(!file.type.startsWith('image/')){toast('Please choose an image file','err');input.value='';return}
+  if(file.size>8*1024*1024){toast('Image too large — pick one under 8MB','err');input.value='';return}
+  const reader=new FileReader();
+  reader.onload=function(e){
+    const img=new Image();
+    img.onload=function(){
+      const size=320;
+      const canvas=document.createElement('canvas');
+      canvas.width=size;canvas.height=size;
+      const ctx=canvas.getContext('2d');
+      const s=Math.min(img.width,img.height);
+      const sx=(img.width-s)/2, sy=(img.height-s)/2;
+      ctx.drawImage(img,sx,sy,s,s,0,0,size,size);
+      pPhotoURL=canvas.toDataURL('image/jpeg',0.82);
+      const preview=document.getElementById('p-photo-preview');
+      if(preview) preview.innerHTML=`<img src="${pPhotoURL}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
+      const rb=document.getElementById('p-photo-remove-btn');
+      if(rb) rb.style.display='';
+      toast('📷 Photo ready — click Save Update to apply');
+    };
+    img.onerror=function(){toast('Could not read that image','err')};
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+  input.value='';
+}
+
+function removeProfilePhoto(){
+  pPhotoURL=null;
+  const preview=document.getElementById('p-photo-preview');
+  if(preview&&CU){
+    const c=dc(CU.dept);
+    preview.style.cssText=`width:84px;height:84px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.7rem;background:${c}18;color:${c};border:2px solid ${c}40;overflow:hidden`;
+    preview.textContent=ini(CU.name);
+  }
+  const rb=document.getElementById('p-photo-remove-btn');
+  if(rb) rb.style.display='none';
+  toast('Photo removed — click Save Update to apply');
 }
 
 function renderPTagWrap(){
@@ -864,6 +1084,7 @@ async function saveProfile(){
   m.projectList = getProjects();
   m.skills      = [...pSkills];
   m.courses     = getPCourses();
+  m.photoURL    = pPhotoURL || null;
 
   // Keep members array and CU in sync
   members[idx] = m;
@@ -871,6 +1092,7 @@ async function saveProfile(){
 
   // Save to Firestore
   await saveDoc('members', m);
+  updateTopbarUser();
 
   // ── Auto-create LeetCode entry if LeetCode URL is set but no LC entry exists ──
   const lcHandleFromUrl = extractLeetCodeHandle(m.leetcodeUrl);
@@ -1462,7 +1684,7 @@ function openMemberDetail(id){
 
   document.getElementById('modal-member-body').innerHTML=`
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:22px">
-      <div class="av" style="width:50px;height:50px;font-size:1.1rem;background:${c}18;color:${c};border:2px solid ${c}40">${ini(m.name)}</div>
+      <div class="av" style="width:50px;height:50px;font-size:1.1rem;background:${c}18;color:${c};border:2px solid ${c}40">${avInner(m)}</div>
       <div>
         <h3 style="margin-bottom:7px">${m.name}${isMe?' <span style="font-size:.72rem;color:var(--acc)">(you)</span>':''}</h3>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
@@ -1760,6 +1982,37 @@ async function syncAllLeetCode(){
   renderLeetCode();
 }
 
+/* Horizontal bar chart of the top LeetCode solvers */
+function buildTopSolversBars(sortedMembers, max){
+  max = max || 5;
+  const withStats = sortedMembers.map(mm=>{
+    const e = leetcodeStats.find(x=>sid(x.memberId)===sid(mm.id));
+    const total = e ? (e.easy||0)+(e.medium||0)+(e.hard||0) : 0;
+    return {mm, total};
+  }).filter(x=>x.total>0).slice(0,max);
+  if(!withStats.length) return emptyState('📊','No LeetCode data synced yet.');
+  const maxVal = Math.max(...withStats.map(x=>x.total));
+  const medals=['🥇','🥈','🥉'];
+  return `<div style="display:flex;flex-direction:column;gap:12px">
+    ${withStats.map((x,i)=>{
+      const c=dc(x.mm.dept);
+      const pct = Math.max(6, Math.round(x.total/maxVal*100));
+      return `<div>
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:.78rem;margin-bottom:5px">
+          <span style="display:flex;align-items:center;gap:7px;font-weight:700;color:var(--t1)">
+            <span style="width:20px;height:20px;border-radius:50%;background:${c}18;color:${c};display:inline-flex;align-items:center;justify-content:center;font-size:.62rem;overflow:hidden;flex-shrink:0">${i<3?medals[i]:avInner(x.mm)}</span>
+            ${x.mm.name}
+          </span>
+          <span style="font-weight:800;color:#f89f1b">${x.total}</span>
+        </div>
+        <div style="height:9px;border-radius:99px;background:var(--s3);overflow:hidden">
+          <div style="height:100%;width:${pct}%;border-radius:99px;background:linear-gradient(90deg,#f89f1b,#fbbf24)"></div>
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
 function renderLeetCode(){
   if(!CU) return;
   const body = document.getElementById('leetcode-body');
@@ -1790,6 +2043,11 @@ function renderLeetCode(){
       <div class="sc lc-sc-medium"><div class="sc-num lc-medium">${totMedium}</div><div class="sc-lbl">Medium</div></div>
       <div class="sc lc-sc-hard"><div class="sc-num lc-hard">${totHard}</div><div class="sc-lbl">Hard</div></div>
     </div>
+  </div>
+
+  <div class="card" style="margin-bottom:22px">
+    <div class="ct"><span class="cd" style="background:#f89f1b"></span>🏆 Top Solvers</div>
+    ${buildTopSolversBars(sorted)}
   </div>
 
   <div class="card" style="margin-bottom:22px">
@@ -2090,7 +2348,7 @@ function renderHackathons(){
         </div>
       </div>
       <div class="act">
-        <button class="btn" style="background:linear-gradient(135deg,var(--acc6),var(--acc4));color:#060810;font-weight:700;font-size:.88rem" onclick="addHackathon()">🏆 Post Hackathon</button>
+        <button class="btn" style="background:linear-gradient(135deg,var(--acc6),var(--acc4));color:#07050f;font-weight:700;font-size:.88rem" onclick="addHackathon()">🏆 Post Hackathon</button>
         <button class="btn btn-s" onclick="resetHkForm()">↺ Reset</button>
       </div>
     </div>`;
@@ -2691,7 +2949,7 @@ async function renderTasks(){
     </div>`;
   }
   if(pendingExcuses>0){
-    html+=`<div class="info-pill" style="margin-bottom:14px;background:rgba(167,139,250,.07);border-color:rgba(167,139,250,.25);color:var(--acc)">
+    html+=`<div class="info-pill" style="margin-bottom:14px;background:rgba(192,132,252,.07);border-color:rgba(192,132,252,.25);color:var(--acc)">
       💬 <strong>${pendingExcuses} excuse${pendingExcuses>1?'s':''}</strong> submitted by members — please review and acknowledge.
     </div>`;
   }
@@ -3136,10 +3394,10 @@ function renderTaskItem(t, {myView=false,domainView=false,isTLofDom=false,isCap=
       <!-- Action buttons -->
       <div class="dt-task-actions">
         ${canMemberAct?`<button class="btn btn-p btn-xs" onclick="memberSubmitDone('${t.id}')">✓ Mark Complete</button>
-          <button class="btn btn-xs" style="background:rgba(124,58,237,.1);color:var(--acc);border:1px solid rgba(124,58,237,.25)" onclick="showExcusePanel('${t.id}')">💬 Can't Complete</button>`:''}
+          <button class="btn btn-xs" style="background:rgba(192,132,252,.1);color:var(--acc);border:1px solid rgba(192,132,252,.25)" onclick="showExcusePanel('${t.id}')">💬 Can't Complete</button>`:''}
         ${canTLVerify?`<button class="btn btn-p btn-xs" style="background:linear-gradient(135deg,var(--acc5),var(--acc2));color:#07050f" onclick="tlVerifyTask('${t.id}')">✅ Verify Complete</button>
           <button class="btn btn-xs" style="background:rgba(129,140,248,.1);color:var(--acc2);border:1px solid rgba(129,140,248,.25)" onclick="tlUnsubmitTask('${t.id}')">↩ Send Back</button>`:''}
-        ${canTLAckExcuse?`<button class="btn btn-xs" style="background:rgba(124,58,237,.1);color:var(--acc);border:1px solid rgba(124,58,237,.25)" onclick="showTLAckPanel('${t.id}')">💬 Acknowledge Excuse</button>`:''}
+        ${canTLAckExcuse?`<button class="btn btn-xs" style="background:rgba(192,132,252,.1);color:var(--acc);border:1px solid rgba(192,132,252,.25)" onclick="showTLAckPanel('${t.id}')">💬 Acknowledge Excuse</button>`:''}
         ${canTLCarryOver?`<button class="btn btn-xs" style="background:rgba(252,211,77,.1);color:var(--acc4);border:1px solid rgba(252,211,77,.25)" onclick="showCarryOverPanel('${t.id}')">↩ Carry to Next Day</button>`:''}
         ${canTLRemove?`<button class="btn btn-d btn-xs" onclick="showRemovePanel('${t.id}')">🗑 Remove</button>`:''}
       </div>
@@ -3481,7 +3739,7 @@ function showExcusePanel(tid){
     <div style="font-size:.78rem;font-weight:700;margin-bottom:8px;color:var(--acc)">💬 Can't Complete — Give Reason</div>
     <textarea id="dt-excuse-${tid}" placeholder="Explain why you cannot complete this task (conflicting PS work, external reason, resource issue…)" required></textarea>
     <div class="act">
-      <button class="btn btn-xs" style="background:rgba(124,58,237,.15);color:var(--acc);border:1px solid rgba(124,58,237,.3)" onclick="confirmExcuse('${tid}')">Submit Reason</button>
+      <button class="btn btn-xs" style="background:rgba(192,132,252,.15);color:var(--acc);border:1px solid rgba(192,132,252,.3)" onclick="confirmExcuse('${tid}')">Submit Reason</button>
       <button class="btn btn-s btn-xs" onclick="document.getElementById('dt-panel-${tid}').innerHTML=''">Cancel</button>
     </div>
   </div>`;
@@ -3619,7 +3877,7 @@ function showTLAckPanel(tid){
     <div style="font-size:.78rem;font-weight:700;margin-bottom:8px;color:var(--acc)">💬 Acknowledge Excuse</div>
     <textarea id="dt-ack-${tid}" placeholder="Your response to the member's excuse — e.g. 'Accepted, carrying task', 'Please complete by tomorrow EOD'…"></textarea>
     <div class="act">
-      <button class="btn btn-xs" style="background:rgba(124,58,237,.15);color:var(--acc);border:1px solid rgba(124,58,237,.3)" onclick="confirmTLAck('${tid}','carry')">Accept & Carry Over</button>
+      <button class="btn btn-xs" style="background:rgba(192,132,252,.15);color:var(--acc);border:1px solid rgba(192,132,252,.3)" onclick="confirmTLAck('${tid}','carry')">Accept & Carry Over</button>
       <button class="btn btn-xs" style="background:rgba(129,140,248,.1);color:var(--acc2);border:1px solid rgba(129,140,248,.25)" onclick="confirmTLAck('${tid}','pending')">Reinstate as Pending</button>
       <button class="btn btn-s btn-xs" onclick="document.getElementById('dt-panel-${tid}').innerHTML=''">Cancel</button>
     </div>
