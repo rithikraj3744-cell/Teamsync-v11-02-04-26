@@ -44,6 +44,14 @@ function ini(n){return (n||'?').split(' ').map(w=>w[0]).slice(0,2).join('').toUp
 function avInner(m){
   return (m&&m.photoURL) ? `<img src="${m.photoURL}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block">` : ini(m&&m.name);
 }
+/* Applies member color to an avatar circle without disturbing its size/shape —
+   never use style.cssText here, it wipes out width/height/overflow set elsewhere. */
+function paintAvatar(el,color){
+  if(!el) return;
+  el.style.background=`${color}1a`;
+  el.style.color=color;
+  el.style.border=`1.5px solid ${color}40`;
+}
 function ds(dept){return DEPT_SHORT[dept]||'OTH'}
 function isSenior(role){return SENIOR_ROLES.includes(role)}
 function sid(x){return String(x)}
@@ -417,7 +425,7 @@ function buildNav(){
   if(CU){
     const c=dc(CU.dept);
     const mmav=document.getElementById('mm-av');
-    if(mmav){mmav.innerHTML=avInner(CU);mmav.style.cssText=`background:${c}1a;color:${c};border:1.5px solid ${c}40`;}
+    if(mmav){mmav.innerHTML=avInner(CU);paintAvatar(mmav,c);}
     const mmu=document.getElementById('mm-uname');
     if(mmu) mmu.textContent=CU.name;
     const mmr=document.getElementById('mm-role');
@@ -442,7 +450,7 @@ function updateTopbarUser(){
   const c=dc(CU.dept);
   const av=document.getElementById('tb-av');
   av.innerHTML=avInner(CU);
-  av.style.cssText=`background:${c}1a;color:${c};border:1.5px solid ${c}40`;
+  paintAvatar(av,c);
   document.getElementById('tb-uname').textContent=CU.name;
   const rb=document.getElementById('tb-rbadge');
   // Show "Acting Captain" badge if vice is elevated
@@ -462,7 +470,7 @@ function updateTopbarUser(){
   }
   // Sync mobile menu avatar
   const mmav=document.getElementById('mm-av');
-  if(mmav){mmav.innerHTML=avInner(CU);mmav.style.cssText=`background:${c}1a;color:${c};border:1.5px solid ${c}40`;}
+  if(mmav){mmav.innerHTML=avInner(CU);paintAvatar(mmav,c);}
   const mmu=document.getElementById('mm-uname');
   if(mmu) mmu.textContent=CU.name;
   const mmr=document.getElementById('mm-role');
@@ -4150,12 +4158,27 @@ document.addEventListener('DOMContentLoaded',()=>{
 });
 
 /* ══════════════════ DARK / LIGHT MODE TOGGLE ══════════════════ */
+/* Syncs the native Android status bar icon color to the current theme.
+   Requires the @capacitor/status-bar plugin — if it isn't installed this
+   silently no-ops, so it's always safe to call. */
+function syncStatusBar(isLight){
+  try{
+    if(!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform())) return;
+    const SB = window.Capacitor.Plugins && window.Capacitor.Plugins.StatusBar;
+    if(!SB) return;
+    // Light theme = light background, so status bar icons need to be DARK (and vice versa)
+    SB.setStyle({ style: isLight ? 'DARK' : 'LIGHT' });
+    if(SB.setBackgroundColor) SB.setBackgroundColor({ color: isLight ? '#f4f0ff' : '#07050f' });
+  }catch(e){}
+}
+
 function toggleTheme(){
   const body = document.body;
   const icon = document.getElementById('tt-icon');
   const isLight = body.classList.toggle('light-mode');
   if(icon) icon.textContent = isLight ? '☀️' : '🌙';
   try{ localStorage.setItem('ts-theme', isLight ? 'light' : 'dark'); } catch(e){}
+  syncStatusBar(isLight);
 }
 
 // Apply saved theme on page load — dark is default
@@ -4168,6 +4191,7 @@ function toggleTheme(){
       const icon = document.getElementById('tt-icon');
       if(icon) icon.textContent = '☀️';
     }
+    syncStatusBar(saved === 'light');
   } catch(e){}
 })();
 
