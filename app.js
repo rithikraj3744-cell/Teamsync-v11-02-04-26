@@ -62,7 +62,7 @@ function canViewOtherDashboards(role){return isSenior(role) && role!=='team_lead
 
 /* ════════════════════════════════════════════════════════════
    DATA — backed by Firebase Firestore
-   Collections: members | messages | reports | roadmaps | hackathons
+   Collections: members | messages | reports | roadmaps | hackathons | aptitudeMaterials | aptitudeTests
 ════════════════════════════════════════════════════════════ */
 let members    = [];
 let messages   = [];
@@ -72,6 +72,8 @@ let hackathons = [];
 let leetcodeStats = [];  // LeetCode tracker data
 let dailyTasks    = [];  // Daily tasks per member
 let domains       = [];  // Domain groups { id, name, emoji, tlId, tlName, memberIds, psName }
+let aptitudeMaterials = []; // Study material posted by Captain / Aptitude Incharge
+let aptitudeTests     = []; // MCQ tests { id, title, questions:[{q,options,correct}], submissions:[{memberId,answers,score}] }
 let captainLeave  = null; // { id, type:'single'|'range', startDate, endDate, startTime, endTime, viceCaptainId, appliedAt, active }
 let CU         = null; // current logged-in user
 
@@ -124,7 +126,7 @@ async function loadCol(col, orderField){
 
 /* Load all collections at once */
 async function reloadData(){
-  [members, messages, reports, roadmaps, hackathons, leetcodeStats, dailyTasks, domains] = await Promise.all([
+  [members, messages, reports, roadmaps, hackathons, leetcodeStats, dailyTasks, domains, aptitudeMaterials, aptitudeTests] = await Promise.all([
     loadCol('members'),
     loadCol('messages', 'time'),
     loadCol('reports',  'time'),
@@ -132,7 +134,9 @@ async function reloadData(){
     loadCol('hackathons'),
     loadCol('leetcodeStats'),
     loadCol('dailyTasks'),
-    loadCol('domains')
+    loadCol('domains'),
+    loadCol('aptitudeMaterials'),
+    loadCol('aptitudeTests')
   ]);
   // Load captain leave setting
   try {
@@ -394,6 +398,7 @@ function buildNav(){
     {id:'reports',  lbl:'Reports',    icon:'📄'},
     {id:'roadmap',  lbl:'Roadmap',    icon:'🗺'},
     {id:'hackathon',lbl:'Hackathons', icon:'🏆'},
+    {id:'aptitude', lbl:'Aptitude',   icon:'🧠'},
     {id:'depts',    lbl:'Departments',icon:'🏫'},
     {id:'profile',  lbl:'My Profile', icon:'👤'},
   ];
@@ -498,7 +503,8 @@ function goTo(id){
   const renders={
     dash:renderDash, profile:renderProfile,
     announce:renderAnnounce, reports:renderReports,
-    roadmap:renderRoadmap, depts:renderDepts, hackathon:renderHackathons, leetcode:renderLeetCode, admin:renderAdmin, tasks:renderTasks
+    roadmap:renderRoadmap, depts:renderDepts, hackathon:renderHackathons, leetcode:renderLeetCode, admin:renderAdmin, tasks:renderTasks,
+    aptitude:renderAptitude
   };
   if(renders[id]) renders[id]();
 }
@@ -904,6 +910,7 @@ function renderProfile(){
     <div class="card"><div class="ct"><span class="cd" style="background:var(--acc6)"></span>🔗 Social &amp; Profile Links <span style="font-size:.72rem;color:var(--t3);font-weight:400;margin-left:4px">(visible to all members)</span></div>
       <div class="fg">
         <div class="field"><label>🔵 LinkedIn URL</label><input id="p-linkedin" type="url" value="${m.linkedin||''}" placeholder="https://linkedin.com/in/yourname"></div>
+        <div class="field"><label>⚫ GitHub URL</label><input id="p-github" type="url" value="${m.github||''}" placeholder="https://github.com/yourname"></div>
         <div class="field"><label>🌐 Portfolio URL</label><input id="p-portfolio" type="url" value="${m.portfolio||''}" placeholder="https://yourportfolio.com"></div>
         <div class="field full"><label>🟡 LeetCode Profile URL</label><input id="p-leetcode-url" type="url" value="${m.leetcodeUrl||''}" placeholder="https://leetcode.com/yourname"></div>
       </div>
@@ -1084,6 +1091,7 @@ async function saveProfile(){
   m.year        = v('p-year');
   m.email       = v('p-email');
   m.linkedin    = safeUrl(v('p-linkedin'));
+  m.github      = safeUrl(v('p-github'));
   m.portfolio   = safeUrl(v('p-portfolio'));
   m.leetcodeUrl = safeUrl(v('p-leetcode-url'));
   m.dream       = v('p-dream');
@@ -1703,8 +1711,9 @@ function openMemberDetail(id){
     </div>
     ${viewingOther?`<div class="info-pill ip-info" style="margin-bottom:16px">👁 Viewing ${m.name}'s personal dashboard — view only</div>`:''}
     <div class="ds"><h4>📋 Info</h4><p>${m.roll} · ${m.year}${m.email?' · '+m.email:''} · Joined: ${m.addedOn}</p></div>
-    ${(m.linkedin||m.portfolio||m.leetcodeUrl)?`<div class="ds"><h4>🔗 Links</h4><div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
+    ${(m.linkedin||m.github||m.portfolio||m.leetcodeUrl)?`<div class="ds"><h4>🔗 Links</h4><div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
       ${m.linkedin?`<button class="prof-link-btn" data-url="${encodeURIComponent(m.linkedin)}" style="background:rgba(10,102,194,.13);border:1px solid rgba(10,102,194,.3);color:#5b9bd5">🔵 LinkedIn</button>`:''}
+      ${m.github?`<button class="prof-link-btn" data-url="${encodeURIComponent(m.github)}" style="background:rgba(36,41,46,.08);border:1px solid rgba(36,41,46,.28);color:#24292e">⚫ GitHub</button>`:''}
       ${m.portfolio?`<button class="prof-link-btn" data-url="${encodeURIComponent(m.portfolio)}" style="background:rgba(110,231,183,.1);border:1px solid rgba(110,231,183,.25);color:#6ee7b7">🌐 Portfolio</button>`:''}
       ${m.leetcodeUrl?`<button class="prof-link-btn" data-url="${encodeURIComponent(m.leetcodeUrl)}" style="background:rgba(248,159,27,.1);border:1px solid rgba(248,159,27,.28);color:#f89f1b">🟡 LeetCode</button>`:''}
     </div></div>`:''}
@@ -2528,6 +2537,299 @@ function resetHkForm(){
     const el = document.getElementById(id);
     if(el) el.selectedIndex = 0;
   });
+}
+
+/* ════════════════════════════════════════════════════════════
+   APTITUDE
+   Assign: Captain assigns one or more members as "Aptitude Incharge"
+   Post material & create tests: Incharge (+ Captain)
+   View material & attempt tests: ALL members
+════════════════════════════════════════════════════════════ */
+let aptQRows = []; // question-builder row ids for the test-creation form
+
+function canManageAptitude(){
+  return !!CU && (CU.role==='captain' || hasElevatedAccess() || !!CU.aptitudeIncharge);
+}
+
+function renderAptitude(){
+  if(!CU) return;
+  const body = document.getElementById('aptitude-body');
+  const isCap = CU.role==='captain' || hasElevatedAccess();
+  const canManage = canManageAptitude();
+  let html = '';
+
+  // ── Captain: assign / remove Aptitude Incharge ──
+  if(isCap){
+    const list = members.slice().sort((a,b)=>a.name.localeCompare(b.name));
+    html += `<div class="card">
+      <div class="ct"><span class="cd" style="background:var(--acc3)"></span>Assign Aptitude Incharge</div>
+      <div class="info-pill ip-info" style="margin-bottom:14px">🧠 Assigned members can post study material &amp; create tests for the whole team</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${list.map(m=>`
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 13px;background:var(--s2);border:1px solid var(--b1);border-radius:var(--r8)">
+            <div style="display:flex;align-items:center;gap:10px;min-width:0">
+              <div class="av" style="width:32px;height:32px;font-size:.7rem;background:${dc(m.dept)}18;color:${dc(m.dept)};border:1.5px solid ${dc(m.dept)}38;flex-shrink:0">${avInner(m)}</div>
+              <div style="min-width:0">
+                <div style="font-weight:600;font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHTML(m.name)}${m.aptitudeIncharge?' <span class="badge" style="background:rgba(192,132,252,.15);color:var(--acc);margin-left:4px">Incharge</span>':''}</div>
+                <div style="font-size:.72rem;color:var(--t3)">${ROLES[m.role]}</div>
+              </div>
+            </div>
+            <button class="btn ${m.aptitudeIncharge?'btn-d':'btn-s'} btn-xs" style="flex-shrink:0" onclick="toggleAptitudeIncharge('${m.id}')">${m.aptitudeIncharge?'✕ Remove':'➕ Assign'}</button>
+          </div>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  // ── Incharge / Captain: post material & create tests ──
+  if(canManage){
+    html += `<div class="card">
+      <div class="ct"><span class="cd" style="background:var(--acc5)"></span>Post Study Material</div>
+      <div class="fg">
+        <div class="field full"><label>Title *</label><input id="am-title" placeholder="Quantitative Aptitude — Time & Work"></div>
+        <div class="field full"><label>Content</label><textarea id="am-content" style="min-height:110px" placeholder="Notes, formulas, tips, practice questions…"></textarea></div>
+        <div class="field full"><label>Resource Link (optional)</label><input id="am-link" type="url" placeholder="https://drive.google.com/…"></div>
+      </div>
+      <div class="act"><button class="btn btn-acc5" onclick="addAptitudeMaterial()">📚 Post Material</button></div>
+    </div>
+
+    <div class="card">
+      <div class="ct"><span class="cd" style="background:var(--acc)"></span>Create Aptitude Test</div>
+      <div class="fg">
+        <div class="field full"><label>Test Title *</label><input id="at-title" placeholder="Weekly Aptitude Test #1"></div>
+        <div class="field full"><label>Description</label><textarea id="at-desc" style="min-height:70px" placeholder="Instructions, topics covered, time limit…"></textarea></div>
+      </div>
+      <div id="at-qrows" style="display:flex;flex-direction:column;gap:14px;margin:14px 0"></div>
+      <button class="btn btn-s btn-sm" onclick="addAptQuestionRow()">+ Add Question</button>
+      <div class="act" style="margin-top:16px"><button class="btn btn-p" onclick="createAptitudeTest()">🧪 Publish Test</button></div>
+    </div>`;
+  }
+
+  // ── Study material list (everyone) ──
+  const matList = aptitudeMaterials.slice().reverse();
+  html += `<div class="card">
+    <div class="ct"><span class="cd" style="background:var(--acc2)"></span>📚 Study Materials (${matList.length})</div>
+    ${matList.length ? matList.map(mtl=>aptMaterialCardHTML(mtl,canManage)).join('') : emptyState('📚','No study material posted yet.')}
+  </div>`;
+
+  // ── Test list (everyone) ──
+  const testList = aptitudeTests.slice().reverse();
+  html += `<div class="card">
+    <div class="ct"><span class="cd" style="background:var(--acc6)"></span>🧪 Tests (${testList.length})</div>
+    ${testList.length ? testList.map(t=>aptTestCardHTML(t,canManage)).join('') : emptyState('🧪','No tests published yet.')}
+  </div>`;
+
+  body.innerHTML = html;
+
+  // Start the question builder with one empty question row
+  if(canManage){
+    aptQRows = [];
+    addAptQuestionRow();
+  }
+}
+
+function aptMaterialCardHTML(mtl, canManage){
+  const canDelete = canManage && (CU.role==='captain' || hasElevatedAccess() || String(mtl.createdBy)===String(CU.id));
+  return `<div style="padding:14px;background:var(--s2);border:1px solid var(--b1);border-radius:var(--r8);margin-bottom:12px">
+    <div style="font-weight:700;font-size:.9rem;color:var(--t1)">${escHTML(mtl.title)}</div>
+    ${mtl.content?`<p style="white-space:pre-wrap;margin-top:6px;font-size:.85rem;color:var(--t2);line-height:1.6">${escHTML(mtl.content)}</p>`:''}
+    ${mtl.link?`<p style="margin-top:8px"><a href="${escHTML(mtl.link)}" target="_blank" rel="noopener" style="color:var(--acc);font-size:.83rem;font-weight:600">🔗 Open Resource</a></p>`:''}
+    <p style="font-size:.72rem;color:var(--t3);margin-top:9px">By ${escHTML(mtl.createdByName)} · ${mtl.createdOn}</p>
+    ${canDelete?`<button class="btn btn-d btn-xs" style="margin-top:8px" onclick="deleteAptitudeMaterial('${mtl.id}')">🗑 Delete</button>`:''}
+  </div>`;
+}
+
+function aptTestCardHTML(t, canManage){
+  const subs = t.submissions || [];
+  const qCount = (t.questions||[]).length;
+  const mySub = subs.find(s=>String(s.memberId)===String(CU.id));
+  const avg = subs.length ? (subs.reduce((a,s)=>a+s.score,0)/subs.length).toFixed(1) : null;
+  const canDelete = canManage && (CU.role==='captain' || hasElevatedAccess() || String(t.createdBy)===String(CU.id));
+  return `<div style="padding:14px;background:var(--s2);border:1px solid var(--b1);border-radius:var(--r8);margin-bottom:12px">
+    <div style="font-weight:700;font-size:.9rem;color:var(--t1)">${escHTML(t.title)}</div>
+    ${t.description?`<p style="margin-top:5px;font-size:.83rem;color:var(--t2)">${escHTML(t.description)}</p>`:''}
+    <p style="font-size:.72rem;color:var(--t3);margin-top:9px">By ${escHTML(t.createdByName)} · ${t.createdOn} · ${qCount} question${qCount!==1?'s':''} · ${subs.length} attempt${subs.length!==1?'s':''}${avg?` · Avg ${avg}/${qCount}`:''}</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:11px;align-items:center">
+      ${mySub
+        ? `<span class="badge" style="background:rgba(110,231,183,.15);color:#22c07a">✅ Scored ${mySub.score}/${qCount}</span>
+           <button class="btn btn-s btn-xs" onclick="openTakeTest('${t.id}',true)">👁 Review Answers</button>`
+        : `<button class="btn btn-p btn-xs" onclick="openTakeTest('${t.id}',false)">📝 Take Test</button>`}
+      ${canManage?`<button class="btn btn-acc2 btn-xs" onclick="viewAptTestResults('${t.id}')">📊 Results (${subs.length})</button>`:''}
+      ${canDelete?`<button class="btn btn-d btn-xs" onclick="deleteAptitudeTest('${t.id}')">🗑 Delete</button>`:''}
+    </div>
+  </div>`;
+}
+
+async function toggleAptitudeIncharge(id){
+  const m = members.find(x=>sid(x.id)===sid(id));
+  if(!m) return;
+  m.aptitudeIncharge = !m.aptitudeIncharge;
+  await saveDoc('members', m);
+  if(CU && sid(CU.id)===sid(m.id)) CU.aptitudeIncharge = m.aptitudeIncharge;
+  toast(m.aptitudeIncharge ? `${m.name} is now Aptitude Incharge` : `${m.name} removed as Aptitude Incharge`);
+  renderAptitude();
+}
+
+async function addAptitudeMaterial(){
+  const title = v('am-title');
+  if(!title){toast('Material title is required','err');return}
+  const mtl = {
+    id: Date.now(), title, content: v('am-content'), link: safeUrl(v('am-link')),
+    createdBy: CU.id, createdByName: CU.name, createdOn: today()
+  };
+  await saveDoc('aptitudeMaterials', mtl);
+  aptitudeMaterials.push(mtl);
+  toast('✅ Study material posted!');
+  renderAptitude();
+}
+
+async function deleteAptitudeMaterial(id){
+  if(!confirm('Delete this material?')) return;
+  await delDoc('aptitudeMaterials', id);
+  aptitudeMaterials = aptitudeMaterials.filter(m=>sid(m.id)!==sid(id));
+  toast('Material deleted.');
+  renderAptitude();
+}
+
+/* ── Test-creation question builder (mirrors the profile's dynamic course/project rows) ── */
+function addAptQuestionRow(){
+  const id = Date.now()+Math.random();
+  aptQRows.push(id);
+  const cont = document.getElementById('at-qrows');
+  if(!cont) return;
+  const d = document.createElement('div');
+  d.style.cssText='padding:14px;background:var(--s2);border:1px solid var(--b1);border-radius:var(--r8)';
+  d.id = 'aqr-'+id;
+  d.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <strong style="font-size:.8rem;color:var(--t2)">Question ${aptQRows.length}</strong>
+      <button class="btn btn-d btn-xs" style="margin-bottom:0" onclick="rmAptQuestionRow(${id})">✕ Remove</button>
+    </div>
+    <div class="field full" style="margin-bottom:10px"><input type="text" id="aqq-${id}" placeholder="Question text"></div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      ${[0,1,2,3].map(i=>`
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="radio" name="aqc-${id}" value="${i}" ${i===0?'checked':''} style="width:auto;flex-shrink:0;accent-color:var(--acc)">
+          <input type="text" id="aqo-${id}-${i}" placeholder="Option ${String.fromCharCode(65+i)}" style="flex:1;background:var(--s1);border:1px solid var(--b2);border-radius:var(--r8);color:var(--t1);padding:9px 12px;font-size:.85rem;font-family:var(--font);outline:none">
+        </label>`).join('')}
+    </div>
+    <p style="font-size:.7rem;color:var(--t3);margin-top:8px">Select the radio button next to the correct option</p>`;
+  cont.appendChild(d);
+}
+
+function rmAptQuestionRow(id){
+  const el = document.getElementById('aqr-'+id);
+  if(el) el.remove();
+  aptQRows = aptQRows.filter(r=>r!==id);
+  document.querySelectorAll('#at-qrows > div').forEach((row,i)=>{
+    const lbl = row.querySelector('strong');
+    if(lbl) lbl.textContent = 'Question '+(i+1);
+  });
+}
+
+async function createAptitudeTest(){
+  const title = v('at-title');
+  if(!title){toast('Test title is required','err');return}
+  const questions = [];
+  for(const id of aptQRows){
+    if(!document.getElementById('aqr-'+id)) continue;
+    const qtext = (document.getElementById('aqq-'+id)||{value:''}).value.trim();
+    const opts = [0,1,2,3].map(i=>(document.getElementById(`aqo-${id}-${i}`)||{value:''}).value.trim());
+    const correctEl = document.querySelector(`input[name="aqc-${id}"]:checked`);
+    const correct = correctEl ? parseInt(correctEl.value,10) : 0;
+    if(!qtext || opts.some(o=>!o)) continue; // skip incomplete rows
+    questions.push({q:qtext, options:opts, correct});
+  }
+  if(!questions.length){toast('Add at least one complete question (text + all 4 options)','err');return}
+  const t = {
+    id: Date.now(), title, description: v('at-desc'),
+    questions, submissions: [],
+    createdBy: CU.id, createdByName: CU.name, createdOn: today()
+  };
+  await saveDoc('aptitudeTests', t);
+  aptitudeTests.push(t);
+  toast(`✅ Test published with ${questions.length} question${questions.length!==1?'s':''}!`);
+  renderAptitude();
+}
+
+async function deleteAptitudeTest(id){
+  if(!confirm('Delete this test and all its submissions?')) return;
+  await delDoc('aptitudeTests', id);
+  aptitudeTests = aptitudeTests.filter(t=>sid(t.id)!==sid(id));
+  toast('Test deleted.');
+  renderAptitude();
+}
+
+/* ── Take-test / review modal ── */
+function openTakeTest(testId, reviewMode){
+  const t = aptitudeTests.find(x=>sid(x.id)===sid(testId));
+  if(!t) return;
+  const mySub = (t.submissions||[]).find(s=>String(s.memberId)===String(CU.id));
+  const answers = (reviewMode && mySub) ? mySub.answers : [];
+
+  const qHTML = (t.questions||[]).map((q,qi)=>{
+    const optsHTML = q.options.map((opt,oi)=>{
+      let extraStyle='', tag='';
+      if(reviewMode){
+        const picked = answers[qi]===oi;
+        const isCorrect = q.correct===oi;
+        if(isCorrect){extraStyle='color:#22c07a;font-weight:700';tag=' ✓';}
+        else if(picked && !isCorrect){extraStyle='color:#ff4e6a;font-weight:700';tag=' ✕ (your answer)';}
+      }
+      return `<label style="display:flex;align-items:center;gap:8px;${reviewMode?'pointer-events:none':'cursor:pointer'}">
+        <input type="radio" name="tq-${qi}" value="${oi}" ${reviewMode&&answers[qi]===oi?'checked':''} ${reviewMode?'disabled':''} style="width:auto;flex-shrink:0;accent-color:var(--acc)">
+        <span style="${extraStyle}">${String.fromCharCode(65+oi)}. ${escHTML(opt)}${tag}</span>
+      </label>`;
+    }).join('');
+    return `<div style="margin-bottom:16px;padding:14px;background:var(--s2);border:1px solid var(--b1);border-radius:var(--r8)">
+      <div style="font-weight:600;font-size:.87rem;margin-bottom:10px">${qi+1}. ${escHTML(q.q)}</div>
+      <div style="display:flex;flex-direction:column;gap:8px">${optsHTML}</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('modal-apttest-body').innerHTML = `
+    <h3 style="margin-bottom:6px">${reviewMode?'📋 Review — ':'📝 '}${escHTML(t.title)}</h3>
+    ${t.description?`<p style="color:var(--t3);font-size:.85rem;margin-bottom:16px">${escHTML(t.description)}</p>`:''}
+    ${reviewMode?`<div class="info-pill ip-ok" style="margin-bottom:16px">You scored <strong>${mySub.score}/${(t.questions||[]).length}</strong></div>`:''}
+    <div id="tt-qs">${qHTML}</div>
+    ${reviewMode?'':`<div class="act"><button class="btn btn-p" onclick="submitAptitudeTest('${t.id}')">✅ Submit Test</button></div>`}
+  `;
+  document.getElementById('modal-apttest').classList.add('open');
+}
+
+async function submitAptitudeTest(testId){
+  const t = aptitudeTests.find(x=>sid(x.id)===sid(testId));
+  if(!t) return;
+  if((t.submissions||[]).some(s=>String(s.memberId)===String(CU.id))){toast('You already submitted this test','err');return}
+  const qCount = (t.questions||[]).length;
+  const answers = [];
+  for(let qi=0; qi<qCount; qi++){
+    const picked = document.querySelector(`input[name="tq-${qi}"]:checked`);
+    answers.push(picked ? parseInt(picked.value,10) : -1);
+  }
+  if(answers.some(a=>a===-1)){toast('Please answer all questions before submitting','err');return}
+  const score = answers.filter((a,i)=>a===t.questions[i].correct).length;
+  const sub = {memberId:CU.id, memberName:CU.name, answers, score, submittedOn: today()};
+  t.submissions = [...(t.submissions||[]), sub];
+  await saveDoc('aptitudeTests', t);
+  toast(`✅ Submitted! You scored ${score}/${qCount}`);
+  closeMov('modal-apttest');
+  renderAptitude();
+}
+
+function viewAptTestResults(testId){
+  const t = aptitudeTests.find(x=>sid(x.id)===sid(testId));
+  if(!t) return;
+  const subs = (t.submissions||[]).slice().sort((a,b)=>b.score-a.score);
+  const qCount = (t.questions||[]).length;
+  const rowsHTML = subs.length ? subs.map(s=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 13px;background:var(--s2);border:1px solid var(--b1);border-radius:var(--r8);margin-bottom:8px">
+      <span style="font-weight:600;font-size:.85rem">${escHTML(s.memberName)}</span>
+      <span style="font-size:.82rem;color:var(--t3)">${s.score}/${qCount} · ${s.submittedOn}</span>
+    </div>`).join('') : emptyState('📊','No submissions yet.');
+  document.getElementById('modal-apttest-body').innerHTML = `
+    <h3 style="margin-bottom:14px">📊 Results — ${escHTML(t.title)}</h3>
+    ${rowsHTML}`;
+  document.getElementById('modal-apttest').classList.add('open');
 }
 
 function renderAdmin(){
@@ -4084,7 +4386,7 @@ function toast(msg,type){
    EXPORT / IMPORT DATA (for sharing across devices)
 ════════════════════════════════════════════════════════════ */
 function exportData(){
-  const data = {members, messages, reports, roadmaps, hackathons, leetcodeStats, dailyTasks, domains, exportedAt: new Date().toLocaleString('en-IN')};
+  const data = {members, messages, reports, roadmaps, hackathons, leetcodeStats, dailyTasks, domains, aptitudeMaterials, aptitudeTests, exportedAt: new Date().toLocaleString('en-IN')};
   const json = JSON.stringify(data, null, 2);
   const blob = new Blob([json], {type:'application/json'});
   const url  = URL.createObjectURL(blob);
@@ -4108,6 +4410,8 @@ function importData(){
     leetcodeStats = data.leetcodeStats || [];
     dailyTasks    = data.dailyTasks    || [];
     domains       = data.domains       || [];
+    aptitudeMaterials = data.aptitudeMaterials || [];
+    aptitudeTests      = data.aptitudeTests      || [];
     persist();
     toast('Team data imported! You can now log in.');
     document.getElementById('setup-screen').style.display='none';
@@ -4118,7 +4422,7 @@ function importData(){
 }
 
 function copyExportText(){
-  const data = {members, messages, reports, roadmaps, hackathons, leetcodeStats, dailyTasks, domains, exportedAt: new Date().toLocaleString('en-IN')};
+  const data = {members, messages, reports, roadmaps, hackathons, leetcodeStats, dailyTasks, domains, aptitudeMaterials, aptitudeTests, exportedAt: new Date().toLocaleString('en-IN')};
   const json = JSON.stringify(data);
   navigator.clipboard.writeText(json).then(()=>toast('Data copied to clipboard! Paste it on another device.')).catch(()=>toast('Copy failed — use Download instead','err'));
 }
