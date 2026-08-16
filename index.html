@@ -154,7 +154,11 @@
       <div class="sh"><div class="sh-num">02</div><div class="sh-info"><h2>Announcements</h2><p>Team messages — visible to everyone</p></div></div>
       <div class="compose">
         <div class="ct" style="margin-bottom:11px"><span class="cd" style="background:var(--acc4)"></span>Post to Team</div>
-        <textarea id="msg-inp" placeholder="Share an update, announcement, link or resource with everyone..."></textarea>
+        <div id="reply-preview"></div>
+        <div style="position:relative">
+          <textarea id="msg-inp" placeholder="Share an update... type @ to tag someone" oninput="handleMentionInput()" onblur="setTimeout(()=>{const d=document.getElementById('mention-dropdown');if(d)d.style.display='none'},150)"></textarea>
+          <div id="mention-dropdown" class="mention-dropdown"></div>
+        </div>
         <div class="cfoot"><div class="cwho" id="compose-as"></div>
           <button class="btn btn-p btn-sm" onclick="postMsg()">📢 Post</button>
         </div>

@@ -96,6 +96,66 @@ function isNativeApp(){
   return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 }
 
+/* ════════════════════════════════════════════════════════════
+   PUSH NOTIFICATIONS (Capacitor FCM → Vercel proxy → FCM Admin)
+   Requires: npm i @capacitor/push-notifications ; npx cap sync
+   See SETUP_PUSH_NOTIFICATIONS.md for the Android Studio + Vercel steps.
+════════════════════════════════════════════════════════════ */
+const NOTIFY_API = 'https://teamsyncv11.vercel.app/api/send-notification'; // ⚠ change if your proxy domain differs
+
+/* Ask permission + register device token. Call once after login. No-op on web. */
+async function initPushNotifications(){
+  if(!isNativeApp() || !CU) return;
+  try{
+    const P = window.Capacitor.Plugins && window.Capacitor.Plugins.PushNotifications;
+    if(!P){ console.warn('PushNotifications plugin not found — did you npx cap sync?'); return; }
+
+    let perm = await P.checkPermissions();
+    if(perm.receive !== 'granted') perm = await P.requestPermissions();
+    if(perm.receive !== 'granted'){ console.warn('Push permission denied'); return; }
+
+    // Avoid stacking duplicate listeners on repeat logins
+    await P.removeAllListeners();
+
+    P.addListener('registration', (token) => { saveFcmToken(token.value); });
+    P.addListener('registrationError', (err) => { console.error('FCM registration error', err); });
+    P.addListener('pushNotificationReceived', (n) => {
+      // Foreground push — app is open, so just toast it instead of a system banner
+      toast(`🔔 ${n.title || 'TeamSync'}: ${n.body || ''}`);
+    });
+    P.addListener('pushNotificationActionPerformed', (action) => {
+      const data = (action.notification && action.notification.data) || {};
+      if(data.type === 'roadmap') goTo('roadmap');
+      else if(data.type === 'message') goTo('announce');
+    });
+
+    await P.register();
+  }catch(e){ console.error('initPushNotifications failed', e); }
+}
+
+/* Store this device's FCM token against the current user in Firestore */
+async function saveFcmToken(token){
+  if(!CU || !token) return;
+  try{
+    await db().collection('fcmTokens').doc(String(CU.id)).set({
+      uid: Number(CU.id), name: CU.name, token, updatedAt: nowStr()
+    }, { merge:true });
+  }catch(e){ console.error('saveFcmToken failed', e); }
+}
+
+/* Ask the Vercel proxy to push a notification to one or more member ids.
+   Fails silently (network/proxy issues shouldn't block the in-app action). */
+async function sendPushNotification({ toIds, title, body, type, extra }){
+  if(!toIds || !toIds.length) return;
+  try{
+    await fetch(NOTIFY_API, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ toIds, title, body, type, extra: extra||{} })
+    });
+  }catch(e){ console.error('sendPushNotification failed', e); }
+}
+
 /* ── Convert a Blob to a base64 string (no data: prefix) — used for native file saving ── */
 function blobToBase64(blob){
   return new Promise((resolve,reject)=>{
@@ -386,6 +446,7 @@ function launchApp(){
   buildNav();
   updateTopbarUser();
   goTo('dash');
+  initPushNotifications();
 }
 
 function buildNav(){
@@ -1182,6 +1243,12 @@ function msgHTML(msg){
   const isCap=CU&&CU.role==='captain';
   const isMine=CU&&sid(msg.uid)===sid(CU.id);
   const canDel=isCap||isMine;
+  const repliedMsg = msg.replyTo ? messages.find(x=>sid(x.id)===sid(msg.replyTo)) : null;
+  const replyQuote = msg.replyTo
+    ? (repliedMsg
+        ? `<div class="reply-quote" onclick="scrollToMsg(${repliedMsg.id})">↩ <strong>${repliedMsg.uname}</strong>: ${escHTML((repliedMsg.text||'').slice(0,90))}${(repliedMsg.text||'').length>90?'…':''}</div>`
+        : `<div class="reply-quote reply-quote-gone">↩ Replying to a deleted message</div>`)
+    : '';
   return `<div class="msgcard" id="mc-${msg.id}">
     <div class="mh">
       <div class="mav" style="background:${c}18;color:${c};border:1.5px solid ${c}38">${ini(sender.name)}</div>
@@ -1190,25 +1257,165 @@ function msgHTML(msg){
         <div class="mtime">${msg.time}</div>
       </div>
       <div class="mactions">
+        <button class="icon-btn" onclick="startReply(${msg.id})" title="Reply">↩ Reply</button>
         ${isCap?`<button class="icon-btn" onclick="togglePin(${msg.id})" title="${msg.pinned?'Unpin':'Pin'}" style="${msg.pinned?'color:var(--acc4)':''}">📌 ${msg.pinned?'Unpin':'Pin'}</button>`:''}
         ${isMine?`<button class="icon-btn" onclick="editMsg(${msg.id})" title="Edit" style="color:var(--acc2);border:1px solid rgba(129,140,248,.35);border-radius:6px">✏️ Edit</button>`:''}
         ${canDel?`<button class="icon-btn" onclick="delMsg(${msg.id})" title="Delete" style="color:var(--acc3);border:1px solid rgba(249,168,212,.35);border-radius:6px">🗑</button>`:''}
       </div>
     </div>
-    <div class="mbody" id="mbody-${msg.id}">${escHTML(msg.text)}${msg.editedAt?`<span style="font-size:.65rem;color:var(--t4);margin-left:8px;font-family:var(--mono)">(edited ${msg.editedAt})</span>`:''}</div>
+    ${replyQuote}
+    <div class="mbody" id="mbody-${msg.id}">${renderMsgBody(msg.text)}${msg.editedAt?`<span style="font-size:.65rem;color:var(--t4);margin-left:8px;font-family:var(--mono)">(edited ${msg.editedAt})</span>`:''}</div>
     <div id="medit-panel-${msg.id}"></div>
   </div>`;
+}
+
+/* Escape then highlight @Name mentions as chips (only for names that match a real member) */
+function renderMsgBody(text){
+  const esc = escHTML(text);
+  return esc.replace(/@([A-Za-z][\w' -]{1,30})/g, (whole, name) => {
+    const clean = name.trim();
+    const m = members.find(mm => mm.name.toLowerCase() === clean.toLowerCase()
+      || mm.name.toLowerCase().startsWith(clean.toLowerCase()));
+    return m ? `<span class="mention-chip">@${escHTML(m.name)}</span>` : whole;
+  });
+}
+
+/* Find real members referenced via @Name in a message */
+function extractMentions(text){
+  const found=[];
+  const re=/@([A-Za-z][\w' -]{1,30})/g;
+  let match;
+  while((match=re.exec(text))){
+    const name=match[1].trim();
+    const m=members.find(mm=>mm.name.toLowerCase()===name.toLowerCase()
+      || mm.name.toLowerCase().startsWith(name.toLowerCase()));
+    if(m && !found.some(f=>sid(f.id)===sid(m.id))) found.push(m);
+  }
+  return found;
+}
+
+/* ── Reply state ── */
+let replyingTo=null;
+
+function startReply(msgId){
+  const msg=messages.find(x=>sid(x.id)===sid(msgId));
+  if(!msg)return;
+  replyingTo={id:msg.id, uid:msg.uid, uname:msg.uname, text:msg.text};
+  renderReplyPreview();
+  const ta=document.getElementById('msg-inp');
+  if(ta)ta.focus();
+}
+
+function cancelReply(){
+  replyingTo=null;
+  renderReplyPreview();
+}
+
+function renderReplyPreview(){
+  const el=document.getElementById('reply-preview');
+  if(!el)return;
+  if(!replyingTo){ el.innerHTML=''; return; }
+  el.innerHTML=`<div class="reply-bar">
+    <div class="reply-bar-txt">↩ Replying to <strong>${escHTML(replyingTo.uname)}</strong>: ${escHTML((replyingTo.text||'').slice(0,70))}${(replyingTo.text||'').length>70?'…':''}</div>
+    <button class="icon-btn" onclick="cancelReply()">✕</button>
+  </div>`;
+}
+
+function scrollToMsg(id){
+  const el=document.getElementById('mc-'+id);
+  if(!el)return;
+  el.scrollIntoView({behavior:'smooth', block:'center'});
+  el.classList.add('flash-highlight');
+  setTimeout(()=>el.classList.remove('flash-highlight'), 1500);
+}
+
+/* ── @mention autocomplete dropdown ── */
+function handleMentionInput(){
+  const ta=document.getElementById('msg-inp');
+  const dd=document.getElementById('mention-dropdown');
+  if(!ta||!dd)return;
+  const val=ta.value;
+  const pos=ta.selectionStart;
+  const uptoCursor=val.slice(0,pos);
+  const atMatch=uptoCursor.match(/@([\w' -]{0,30})$/);
+  if(!atMatch){ dd.style.display='none'; dd.innerHTML=''; return; }
+  const q=atMatch[1].toLowerCase();
+  const matches=members.filter(m=>Number(m.id)!==Number(CU.id) && m.name.toLowerCase().includes(q)).slice(0,6);
+  if(!matches.length){ dd.style.display='none'; dd.innerHTML=''; return; }
+  dd.style.display='block';
+  dd.innerHTML=matches.map(m=>{
+    const c=dc(m.dept);
+    return `<div class="mention-item" onmousedown="event.preventDefault();insertMention(${m.id})">
+      <span class="mention-item-av" style="background:${c}18;color:${c}">${ini(m.name)}</span>${escHTML(m.name)}
+    </div>`;
+  }).join('');
+}
+
+function insertMention(id){
+  const m=members.find(x=>sid(x.id)===sid(id));
+  const ta=document.getElementById('msg-inp');
+  if(!m||!ta)return;
+  const val=ta.value;
+  const pos=ta.selectionStart;
+  const uptoCursor=val.slice(0,pos);
+  const atMatch=uptoCursor.match(/@([\w' -]{0,30})$/);
+  if(!atMatch)return;
+  const start=atMatch.index;
+  const before=val.slice(0,start);
+  const after=val.slice(pos);
+  const insertion=`@${m.name} `;
+  ta.value=before+insertion+after;
+  ta.selectionStart=ta.selectionEnd=before.length+insertion.length;
+  ta.focus();
+  const dd=document.getElementById('mention-dropdown');
+  if(dd){ dd.style.display='none'; dd.innerHTML=''; }
 }
 
 async function postMsg(){
   const txt=document.getElementById('msg-inp').value.trim();
   if(!txt){toast('Write something first','err');return}
-  const msg={id:Date.now(),uid:Number(CU.id),uname:CU.name,text:txt,time:nowStr(),pinned:false};
+  const mentions = extractMentions(txt);
+  const msg={
+    id:Date.now(), uid:Number(CU.id), uname:CU.name, text:txt, time:nowStr(), pinned:false,
+    mentions: mentions.map(m=>Number(m.id)),
+    replyTo: replyingTo ? replyingTo.id : null
+  };
   await saveDoc('messages', msg);
   messages.push(msg);
   document.getElementById('msg-inp').value='';
+  const dd=document.getElementById('mention-dropdown'); if(dd){dd.style.display='none';dd.innerHTML='';}
+  cancelReply();
   toast('Message posted!');
   renderAnnounce();
+
+  /* ── Push notifications: mentioned/replied-to users get a priority ping,
+     everyone else gets a lighter "new message" ping ── */
+  const priorityIds = new Set();
+  mentions.forEach(m=>{ if(Number(m.id)!==Number(CU.id)) priorityIds.add(Number(m.id)); });
+  if(replyingTo && Number(replyingTo.uid)!==Number(CU.id)) priorityIds.add(Number(replyingTo.uid));
+
+  if(priorityIds.size){
+    const isReplyOnly = !mentions.length;
+    sendPushNotification({
+      toIds:[...priorityIds],
+      title: isReplyOnly ? `${CU.name} replied to you` : `${CU.name} tagged you`,
+      body: txt.slice(0,120),
+      type:'message',
+      extra:{ msgId: msg.id }
+    });
+  }
+  const rest = members
+    .filter(m=>Number(m.id)!==Number(CU.id) && !priorityIds.has(Number(m.id)))
+    .map(m=>Number(m.id));
+  if(rest.length){
+    sendPushNotification({
+      toIds: rest,
+      title: `New team message from ${CU.name}`,
+      body: txt.slice(0,120),
+      type:'message',
+      extra:{ msgId: msg.id }
+    });
+  }
 }
 
 async function togglePin(id){
@@ -1621,6 +1828,13 @@ async function createRoadmap(){
   await saveDoc('roadmaps', rm);
   roadmaps.push(rm);
   toast('✅ Roadmap assigned to '+forM.name+'! They will see it when they open the Roadmap tab.');
+  sendPushNotification({
+    toIds:[Number(rawId)],
+    title:`New roadmap from ${CU.name}`,
+    body:title,
+    type:'roadmap',
+    extra:{ roadmapId: rm.id }
+  });
   // Clear form
   document.getElementById('rm-target').value='';
   document.getElementById('rm-title').value='';
