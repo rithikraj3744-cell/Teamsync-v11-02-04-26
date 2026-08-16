@@ -431,6 +431,7 @@ async function doLogin(){
 
 async function doLogout(){
   CU=null;
+  stopLiveSync();
   sessionStorage.removeItem('tsync_uid');
   sessionStorage.removeItem('tsync_tab');
   document.getElementById('app-shell').style.display='none';
@@ -447,6 +448,43 @@ function launchApp(){
   updateTopbarUser();
   goTo('dash');
   initPushNotifications();
+  startMessagesLiveSync();
+  startRoadmapsLiveSync();
+}
+
+/* ════════════════════════════════════════════════════════════
+   LIVE SYNC — Firestore realtime listeners so Team Chat & Roadmap
+   update instantly for everyone without a manual refresh/relogin.
+════════════════════════════════════════════════════════════ */
+let _msgUnsub = null;
+let _rmUnsub = null;
+
+function startMessagesLiveSync(){
+  if(_msgUnsub) return; // already listening
+  try{
+    _msgUnsub = db().collection('messages').onSnapshot(snap => {
+      messages = snap.docs.map(d => ({...d.data(), _fid: d.id}));
+      // Only re-render if the Announcements tab is the one currently visible
+      const scEl = document.getElementById('sc-announce');
+      if(scEl && scEl.classList.contains('active')) renderAnnounce();
+    }, err => console.error('messages live sync error', err));
+  }catch(e){ console.error('startMessagesLiveSync failed', e); }
+}
+
+function startRoadmapsLiveSync(){
+  if(_rmUnsub) return;
+  try{
+    _rmUnsub = db().collection('roadmaps').onSnapshot(snap => {
+      roadmaps = snap.docs.map(d => ({...d.data(), _fid: d.id}));
+      const scEl = document.getElementById('sc-roadmap');
+      if(scEl && scEl.classList.contains('active')) renderRoadmap();
+    }, err => console.error('roadmaps live sync error', err));
+  }catch(e){ console.error('startRoadmapsLiveSync failed', e); }
+}
+
+function stopLiveSync(){
+  if(_msgUnsub){ _msgUnsub(); _msgUnsub=null; }
+  if(_rmUnsub){ _rmUnsub(); _rmUnsub=null; }
 }
 
 function buildNav(){
