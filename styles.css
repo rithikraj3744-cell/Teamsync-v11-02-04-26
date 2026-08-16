@@ -151,6 +151,7 @@ input[type=file]::file-selector-button:hover{background:var(--s4);border-color:v
 
 /* ══════════════════ BUTTONS ══════════════════ */
 .btn{display:inline-flex;align-items:center;gap:7px;padding:9px 20px;border-radius:var(--r8);border:none;font-family:var(--font);font-size:.85rem;font-weight:600;cursor:pointer;transition:all .2s;white-space:nowrap}
+.btn:disabled{opacity:.55;cursor:not-allowed;pointer-events:none}
 .btn-p{background:linear-gradient(135deg,var(--acc),var(--acc2));color:#07050f}
 .btn-p:hover{background:linear-gradient(135deg,#d8b4fe,#a5b4fc);transform:translateY(-1px);box-shadow:0 6px 20px rgba(192,132,252,.25)}
 .btn-s{background:var(--s2);color:var(--t1);border:1px solid var(--b1)}

@@ -1334,6 +1334,7 @@ function extractMentions(text){
 
 /* ── Reply state ── */
 let replyingTo=null;
+let _postingMsg=false;
 
 function startReply(msgId){
   const msg=messages.find(x=>sid(x.id)===sid(msgId));
@@ -1410,49 +1411,58 @@ function insertMention(id){
 }
 
 async function postMsg(){
+  if(_postingMsg) return; // guard against double-tap / double-submit
   const txt=document.getElementById('msg-inp').value.trim();
   if(!txt){toast('Write something first','err');return}
-  const mentions = extractMentions(txt);
-  const msg={
-    id:Date.now(), uid:Number(CU.id), uname:CU.name, text:txt, time:nowStr(), pinned:false,
-    mentions: mentions.map(m=>Number(m.id)),
-    replyTo: replyingTo ? replyingTo.id : null
-  };
-  await saveDoc('messages', msg);
-  messages.push(msg);
-  document.getElementById('msg-inp').value='';
-  const dd=document.getElementById('mention-dropdown'); if(dd){dd.style.display='none';dd.innerHTML='';}
-  cancelReply();
-  toast('Message posted!');
-  renderAnnounce();
+  _postingMsg = true;
+  const postBtn = document.getElementById('post-msg-btn');
+  if(postBtn) postBtn.disabled = true;
+  try{
+    const mentions = extractMentions(txt);
+    const msg={
+      id:Date.now(), uid:Number(CU.id), uname:CU.name, text:txt, time:nowStr(), pinned:false,
+      mentions: mentions.map(m=>Number(m.id)),
+      replyTo: replyingTo ? replyingTo.id : null
+    };
+    await saveDoc('messages', msg);
+    messages.push(msg);
+    document.getElementById('msg-inp').value='';
+    const dd=document.getElementById('mention-dropdown'); if(dd){dd.style.display='none';dd.innerHTML='';}
+    cancelReply();
+    toast('Message posted!');
+    renderAnnounce();
 
-  /* ── Push notifications: mentioned/replied-to users get a priority ping,
-     everyone else gets a lighter "new message" ping ── */
-  const priorityIds = new Set();
-  mentions.forEach(m=>{ if(Number(m.id)!==Number(CU.id)) priorityIds.add(Number(m.id)); });
-  if(replyingTo && Number(replyingTo.uid)!==Number(CU.id)) priorityIds.add(Number(replyingTo.uid));
+    /* ── Push notifications: mentioned/replied-to users get a priority ping,
+       everyone else gets a lighter "new message" ping ── */
+    const priorityIds = new Set();
+    mentions.forEach(m=>{ if(Number(m.id)!==Number(CU.id)) priorityIds.add(Number(m.id)); });
+    if(replyingTo && Number(replyingTo.uid)!==Number(CU.id)) priorityIds.add(Number(replyingTo.uid));
 
-  if(priorityIds.size){
-    const isReplyOnly = !mentions.length;
-    sendPushNotification({
-      toIds:[...priorityIds],
-      title: isReplyOnly ? `${CU.name} replied to you` : `${CU.name} tagged you`,
-      body: txt.slice(0,120),
-      type:'message',
-      extra:{ msgId: msg.id }
-    });
-  }
-  const rest = members
-    .filter(m=>Number(m.id)!==Number(CU.id) && !priorityIds.has(Number(m.id)))
-    .map(m=>Number(m.id));
-  if(rest.length){
-    sendPushNotification({
-      toIds: rest,
-      title: `New team message from ${CU.name}`,
-      body: txt.slice(0,120),
-      type:'message',
-      extra:{ msgId: msg.id }
-    });
+    if(priorityIds.size){
+      const isReplyOnly = !mentions.length;
+      sendPushNotification({
+        toIds:[...priorityIds],
+        title: isReplyOnly ? `${CU.name} replied to you` : `${CU.name} tagged you`,
+        body: txt.slice(0,120),
+        type:'message',
+        extra:{ msgId: msg.id }
+      });
+    }
+    const rest = members
+      .filter(m=>Number(m.id)!==Number(CU.id) && !priorityIds.has(Number(m.id)))
+      .map(m=>Number(m.id));
+    if(rest.length){
+      sendPushNotification({
+        toIds: rest,
+        title: `New team message from ${CU.name}`,
+        body: txt.slice(0,120),
+        type:'message',
+        extra:{ msgId: msg.id }
+      });
+    }
+  } finally {
+    _postingMsg = false;
+    if(postBtn) postBtn.disabled = false;
   }
 }
 
