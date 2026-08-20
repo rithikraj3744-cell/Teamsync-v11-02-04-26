@@ -1425,7 +1425,10 @@ async function postMsg(){
       replyTo: replyingTo ? replyingTo.id : null
     };
     await saveDoc('messages', msg);
-    messages.push(msg);
+    // NOTE: do NOT push into `messages` here — the Firestore onSnapshot
+    // listener (startMessagesLiveSync) already fires the instant saveDoc
+    // writes (optimistic local update) and rebuilds the `messages` array
+    // from the server snapshot. Pushing here too caused the double post.
     document.getElementById('msg-inp').value='';
     const dd=document.getElementById('mention-dropdown'); if(dd){dd.style.display='none';dd.innerHTML='';}
     cancelReply();
