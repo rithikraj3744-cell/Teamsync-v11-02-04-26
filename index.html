@@ -6,7 +6,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMjggMTI4Ij4KICA8cmVjdCB3aWR0aD0iMTI4IiBoZWlnaHQ9IjEyOCIgcng9IjI4IiBmaWxsPSIjMGUwYjFhIi8+CiAgPHJlY3Qgd2lkdGg9IjEyOCIgaGVpZ2h0PSIxMjgiIHJ4PSIyOCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZDhiNGZlIiBzdHJva2Utd2lkdGg9IjIiIG9wYWNpdHk9IjAuNSIvPgogIDxyZWN0IHg9IjAiIHk9IjAiIHdpZHRoPSIxMjgiIGhlaWdodD0iNiIgcng9IjMiIGZpbGw9IiNkOGI0ZmUiIG9wYWNpdHk9IjAuOSIvPgogIDxsaW5lIHgxPSIyOCIgeTE9IjQwIiB4Mj0iNjAiIHkyPSI0MCIgc3Ryb2tlPSIjZDhiNGZlIiBzdHJva2Utd2lkdGg9IjgiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgogIDxsaW5lIHgxPSI0NCIgeTE9IjQwIiB4Mj0iNDQiIHkyPSI4OCIgc3Ryb2tlPSIjZDhiNGZlIiBzdHJva2Utd2lkdGg9IjgiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgogIDxwYXRoIGQ9Ik03MiA0MSBRNzIgMzggODAgMzggUTkyIDM4IDkyIDQ4IFE5MiA1OCA4MCA1OCBRNjggNTggNjggNjggUTY4IDc4IDgwIDc4IFE5MiA3OCA5MiA3NiIgc3Ryb2tlPSIjYTViNGZjIiBzdHJva2Utd2lkdGg9IjgiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgZmlsbD0ibm9uZSIvPgogIDxjaXJjbGUgY3g9IjEwOCIgY3k9IjQwIiByPSI3IiBmaWxsPSIjZjlhOGQ0IiBvcGFjaXR5PSIwLjk1Ii8+Cjwvc3ZnPg==">
   <title>TeamSync — College Group Manager</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=8.0">
 
 <!-- ══════════ FIREBASE COMPAT SDK (v9 compat — works as normal script tags) ══════════ -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -100,6 +100,11 @@
     <div class="tb-logo">Team<em>Sync</em></div>
     <div class="tb-nav" id="tb-nav"></div>
     <div class="tb-user">
+      <!-- Notifications Bell -->
+      <button id="notif-bell" onclick="toggleNotifications()" title="Notifications" aria-label="Notifications">
+        <span id="notif-icon">🔔</span>
+        <span id="notif-badge" class="notif-badge">0</span>
+      </button>
       <div class="tb-av" id="tb-av"></div>
       <span class="tb-uname" id="tb-uname"></span>
       <span class="tb-role-badge" id="tb-rbadge"></span>
@@ -107,6 +112,20 @@
         <span class="tt-thumb" id="tt-icon">🌙</span>
       </button>
       <button class="btn-logout" onclick="doLogout()">Sign out</button>
+    </div>
+  </div>
+
+  <!-- NOTIFICATION PANEL -->
+  <div id="notif-panel" class="notif-panel">
+    <div class="notif-header">
+      <h3>Notifications</h3>
+      <button class="notif-clear-btn" onclick="clearAllNotifications()">Clear All</button>
+    </div>
+    <div id="notif-list" class="notif-list">
+      <div class="notif-empty">
+        <div class="notif-empty-icon">🔔</div>
+        <p>No notifications yet</p>
+      </div>
     </div>
   </div>
 
@@ -131,6 +150,15 @@
         <button class="btn btn-d btn-sm" style="width:100%;justify-content:center" onclick="doLogout()">Sign out</button>
       </div>
     </div>
+  </div>
+
+  <!-- Notifications Dropdown Panel -->
+  <div id="notif-panel" class="notif-panel">
+    <div class="notif-header">
+      <h3>Notifications</h3>
+      <button class="notif-clear" onclick="clearAllNotifications()">Clear All</button>
+    </div>
+    <div id="notif-list" class="notif-list"></div>
   </div>
 
   <!-- MAIN -->
@@ -214,6 +242,50 @@
       <div class="sh"><div class="sh-num">03</div><div class="sh-info"><h2>Daily Tasks</h2><p>Captain assigns tasks per problem statement — due by 8 PM next day</p></div></div>
       <div id="tasks-body"></div>
     </div>
+
+    <!-- ── TEAM ANALYTICS (Senior Leadership Only) ── -->
+    <div class="screen" id="sc-analytics">
+      <div class="sh"><div class="sh-num">12</div><div class="sh-info"><h2>Team Analytics</h2><p>Performance insights &amp; metrics for senior leadership</p></div></div>
+      
+      <!-- Key Metrics -->
+      <div class="card">
+        <div class="ct"><span class="cd" style="background:var(--acc2)"></span>📊 Key Metrics</div>
+        <div class="analytics-grid">
+          <div class="analytics-tile">
+            <div class="analytics-icon">🎯</div>
+            <div class="analytics-value" id="analytics-completion">0%</div>
+            <div class="analytics-label">Task Completion</div>
+          </div>
+          <div class="analytics-tile">
+            <div class="analytics-icon">👥</div>
+            <div class="analytics-value" id="analytics-active">0</div>
+            <div class="analytics-label">Active Members</div>
+          </div>
+          <div class="analytics-tile">
+            <div class="analytics-icon">⚡</div>
+            <div class="analytics-value" id="analytics-engagement">0%</div>
+            <div class="analytics-label">Engagement Rate</div>
+          </div>
+          <div class="analytics-tile">
+            <div class="analytics-icon">📈</div>
+            <div class="analytics-value" id="analytics-growth">+0%</div>
+            <div class="analytics-label">Weekly Growth</div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Top Performers -->
+      <div class="card">
+        <div class="ct"><span class="cd" style="background:var(--acc4)"></span>🏆 Top Performers This Week</div>
+        <div id="top-performers"></div>
+      </div>
+      
+      <!-- Department Activity -->
+      <div class="card">
+        <div class="ct"><span class="cd" style="background:var(--acc3)"></span>📊 Department Activity</div>
+        <div id="dept-comparison"></div>
+      </div>
+    </div>
 </div><!-- /app-shell -->
 
 <!-- MEMBER DETAIL MODAL -->
@@ -229,6 +301,64 @@
   <div class="modal">
     <button class="modal-x" onclick="closeMov('modal-apttest')">✕ Close</button>
     <div id="modal-apttest-body"></div>
+  </div>
+</div>
+
+<!-- Quick Actions Floating Button -->
+<button id="quick-actions-btn" class="quick-actions-btn" onclick="toggleQuickActions()" title="Quick Actions">
+  <span id="qa-icon">⚡</span>
+</button>
+
+<!-- Quick Actions Panel -->
+<div id="quick-actions-panel" class="quick-actions-panel">
+  <div class="qa-header">
+    <h3>⚡ Quick Actions</h3>
+    <button class="qa-close" onclick="toggleQuickActions()">✕</button>
+  </div>
+  <div class="qa-menu">
+    <button class="qa-item" onclick="quickPost()">
+      <span class="qa-item-icon">📢</span>
+      <div>
+        <div class="qa-item-title">Quick Post</div>
+        <div class="qa-item-desc">Post announcement</div>
+      </div>
+    </button>
+    <button class="qa-item" onclick="quickTask()">
+      <span class="qa-item-icon">✅</span>
+      <div>
+        <div class="qa-item-title">Quick Task</div>
+        <div class="qa-item-desc">Assign new task</div>
+      </div>
+    </button>
+    <button class="qa-item" onclick="quickReport()">
+      <span class="qa-item-icon">📝</span>
+      <div>
+        <div class="qa-item-title">Quick Report</div>
+        <div class="qa-item-desc">Submit weekly report</div>
+      </div>
+    </button>
+    <button class="qa-item" onclick="quickReminder()">
+      <span class="qa-item-icon">⏰</span>
+      <div>
+        <div class="qa-item-title">Send Reminder</div>
+        <div class="qa-item-desc">Notify team members</div>
+      </div>
+    </button>
+    <button class="qa-item" onclick="quickSearch()">
+      <span class="qa-item-icon">🔍</span>
+      <div>
+        <div class="qa-item-title">Search Members</div>
+        <div class="qa-item-desc">Find team member</div>
+      </div>
+    </button>
+  </div>
+</div>
+
+<!-- Quick Action Modal -->
+<div class="mov" id="modal-quick-action">
+  <div class="modal">
+    <button class="modal-x" onclick="closeMov('modal-quick-action')">✕ Close</button>
+    <div id="modal-quick-action-body"></div>
   </div>
 </div>
 
